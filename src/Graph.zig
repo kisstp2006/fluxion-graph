@@ -186,6 +186,15 @@ pub fn addVariable(self: *Graph, variable: model.Variable) EditError!*model.Vari
     return made;
 }
 
+/// A variable of `f`'s own: `variable`'s words are copied. A name its
+/// parameters or its other locals have is taken.
+pub fn addLocal(self: *Graph, f: *Function, variable: model.Variable) EditError!void {
+    for (f.params.items) |p| if (std.mem.eql(u8, p.name, variable.name)) return error.NameTaken;
+    for (f.locals.items) |l| if (std.mem.eql(u8, l.name, variable.name)) return error.NameTaken;
+    const gpa = self.allocator();
+    try f.locals.append(gpa, .{ .name = try gpa.dupe(u8, variable.name), .type = try gpa.dupe(u8, variable.type), .default = try self.clone(variable.default) });
+}
+
 /// A signal of the struct's own, with `params`.
 pub fn addSignal(self: *Graph, name: []const u8, params: []const model.Param) EditError!*model.Signal {
     if (self.taken(name)) return error.NameTaken;

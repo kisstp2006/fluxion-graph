@@ -115,6 +115,8 @@ pub fn build(arena: Allocator, found: service.Catalog, file: ?*const model.File,
         // input event.
         try b.members(t, .{ .on = .target, .of = t.name, .category = t.name });
     }
+    for (found.values) |*t| try b.value(t);
+    for (found.types) |*t| if (t.kind == .@"enum") try b.enumeration(t.name, t.values, t.name);
     for (found.modules) |*m| try b.module(m);
     if (file) |f| try b.own(f);
     return .{ .entries = b.list.items };
@@ -128,7 +130,11 @@ pub fn keyOf(arena: Allocator, node: *const model.Node) Allocator.Error![]const 
         const head = if (std.mem.eql(u8, kind, "call")) "call" else if (std.mem.eql(u8, kind, "member.get")) "get" else "set";
         return callKey(arena, head, call.on, call.of, call.name);
     }
-    if (std.mem.eql(u8, kind, "var.get") or std.mem.eql(u8, kind, "var.set") or std.mem.eql(u8, kind, "signal.emit")) return std.fmt.allocPrint(arena, "{s}:{s}", .{ kind, node.member });
+    if (std.mem.eql(u8, kind, "var.get") or std.mem.eql(u8, kind, "var.set") or std.mem.eql(u8, kind, "signal.emit") or
+        std.mem.eql(u8, kind, "local.get") or std.mem.eql(u8, kind, "local.set") or std.mem.eql(u8, kind, "function.ref"))
+        return std.fmt.allocPrint(arena, "{s}:{s}", .{ kind, node.member });
+    if (std.mem.eql(u8, kind, "enum.member")) return std.fmt.allocPrint(arena, "enum.member:{s}.{s}", .{ node.type, node.member });
+    if (std.mem.eql(u8, kind, "make.struct")) return std.fmt.allocPrint(arena, "make:{s}", .{if (node.call) |c| c.of else ""});
     if (std.mem.eql(u8, kind, "literal")) return std.fmt.allocPrint(arena, "literal:{s}", .{node.type});
     return kind;
 }
@@ -140,6 +146,14 @@ fn callKey(arena: Allocator, head: []const u8, on: model.Call.On, of: []const u8
 fn contains(list: []const []const u8, name: []const u8) bool {
     for (list) |n| if (std.mem.eql(u8, n, name)) return true;
     return false;
+}
+
+/// The type of a value a built-in value type's node is called on, as a
+/// pin's: a list's `[any]`, a map's `[any: any]`.
+fn valueType(name: []const u8) []const u8 {
+    if (std.mem.eql(u8, name, "list")) return "[any]";
+    if (std.mem.eql(u8, name, "map")) return "[any: any]";
+    return name;
 }
 
 /// An annotation's argument as its text, without its quotes.
@@ -170,6 +184,11 @@ const Builder = struct {
 
     fn add(b: *Builder, entry: Entry) Allocator.Error!void {
         try b.list.append(b.arena, entry);
+    }
+
+    fn has(b: *const Builder, key: []const u8) bool {
+        for (b.list.items) |e| if (std.mem.eql(u8, e.key, key)) return true;
+        return false;
     }
 
     fn pins(b: *Builder, given: []const Pin) Allocator.Error![]const Pin {
@@ -212,6 +231,18 @@ const Builder = struct {
             try b.add(.{ .key = try std.fmt.allocPrint(b.arena, "literal:{s}", .{t}), .title = t, .category = "Values", .outputs = try b.pins(&.{.{ .name = "out", .type = t }}), .made = .{ .kind = "literal", .type = t } });
         }
 
+        const any_value: Pin = .{ .name = "value" };
+        try b.add(.{ .key = "logic.orelse", .title = "Or else", .category = "Values", .doc = "The value, or the other where it is null.", .inputs = try b.pins(&.{ any_a, any_b }), .outputs = try b.pins(&.{out}), .made = .{ .kind = "logic.orelse" } });
+        try b.add(.{ .key = "value.unwrap", .title = "Not null", .category = "Values", .doc = "The value, stopping the script where it is null.", .inputs = try b.pins(&.{any_value}), .outputs = try b.pins(&.{out}), .made = .{ .kind = "value.unwrap" } });
+        try b.add(.{ .key = "value.catch", .title = "Catch", .category = "Values", .doc = "The value, or the fallback where it is an error.", .inputs = try b.pins(&.{ any_value, .{ .name = "fallback" } }), .outputs = try b.pins(&.{out}), .made = .{ .kind = "value.catch" } });
+        try b.add(.{ .key = "compare.is_null", .title = "Is null", .category = "Compare", .inputs = try b.pins(&.{any_value}), .outputs = try b.pins(&.{out_bool}), .made = .{ .kind = "compare.is_null" } });
+        try b.add(.{ .key = "value.is", .title = "Is a", .category = "Compare", .doc = "Whether the value is of the node's type.", .inputs = try b.pins(&.{any_value}), .outputs = try b.pins(&.{out_bool}), .made = .{ .kind = "value.is" } });
+        try b.add(.{ .key = "make.text", .title = "Text", .category = "Make", .doc = "Words with values in them: each {name} a pin.", .outputs = try b.pins(&.{.{ .name = "out", .type = "string" }}), .made = .{ .kind = "make.text" } });
+        try b.add(.{ .key = "literal:null", .title = "null", .category = "Values", .outputs = try b.pins(&.{.{ .name = "out" }}), .made = .{ .kind = "literal", .type = "null" } });
+        try b.add(.{ .key = "flow.await", .title = "Await", .category = "Flow", .doc = "Waits for a task, a signal or a number of seconds, and gives what it ends with.", .inputs = try b.pins(&.{ run_in, any_value }), .outputs = try b.pins(&.{ run_out, .{ .name = compile.result_pin } }), .made = .{ .kind = "flow.await" } });
+        try b.add(.{ .key = "flow.switch", .title = "Switch", .category = "Flow", .doc = "A run for each case the node says, and one for the rest.", .inputs = try b.pins(&.{ run_in, any_value }), .outputs = try b.pins(&.{ .{ .name = "else", .run = true }, run_out }), .made = .{ .kind = "flow.switch", .call = .{ .name = "switch" } } });
+        try b.add(.{ .key = "flow.break", .title = "Break", .category = "Flow", .inputs = try b.pins(&.{run_in}), .made = .{ .kind = "flow.break" } });
+        try b.add(.{ .key = "flow.continue", .title = "Continue", .category = "Flow", .inputs = try b.pins(&.{run_in}), .made = .{ .kind = "flow.continue" } });
         try b.add(.{ .key = "flow.branch", .title = "Branch", .category = "Flow", .inputs = try b.pins(&.{ run_in, .{ .name = "condition", .type = "bool" } }), .outputs = try b.pins(&.{ .{ .name = "true", .run = true }, .{ .name = "false", .run = true } }), .made = .{ .kind = "flow.branch" } });
         try b.add(.{ .key = "flow.sequence", .title = "Sequence", .category = "Flow", .inputs = try b.pins(&.{run_in}), .outputs = try b.pins(&.{ .{ .name = "then_0", .run = true }, .{ .name = "then_1", .run = true } }), .made = .{ .kind = "flow.sequence" } });
         try b.add(.{ .key = "flow.for_each", .title = "For each", .category = "Flow", .inputs = try b.pins(&.{ run_in, .{ .name = "list" } }), .outputs = try b.pins(&.{ .{ .name = "body", .run = true }, .{ .name = "item" }, .{ .name = "index", .type = "int" }, run_out }), .made = .{ .kind = "flow.for_each" } });
@@ -264,11 +295,17 @@ const Builder = struct {
     }
 
     fn call(b: *Builder, f: *const service.CatalogMember, where: Where, action: bool) Allocator.Error!void {
+        return b.callOn(f, where, where.of, action);
+    }
+
+    /// A call on `where`, its `target` pin - for one on a value a link
+    /// brings - of the type `target`.
+    fn callOn(b: *Builder, f: *const service.CatalogMember, where: Where, target: []const u8, action: bool) Allocator.Error!void {
         const a = b.arena;
         var inputs: std.ArrayList(Pin) = .empty;
         var outputs: std.ArrayList(Pin) = .empty;
         if (action) try inputs.append(a, run_in);
-        if (where.on == .target) try inputs.append(a, .{ .name = "target", .type = where.of });
+        if (where.on == .target) try inputs.append(a, .{ .name = "target", .type = target });
         var args: std.ArrayList([]const u8) = .empty;
         for (f.params) |p| {
             // A rest of values - `print(values: any...)` - is one pin.
@@ -298,12 +335,16 @@ const Builder = struct {
     }
 
     fn member(b: *Builder, f: *const service.CatalogMember, where: Where, comptime head: []const u8) Allocator.Error!void {
+        return b.memberOn(f, where, where.of, head);
+    }
+
+    fn memberOn(b: *Builder, f: *const service.CatalogMember, where: Where, target: []const u8, comptime head: []const u8) Allocator.Error!void {
         const a = b.arena;
         const sets = comptime std.mem.eql(u8, head, "set");
         var inputs: std.ArrayList(Pin) = .empty;
         var outputs: std.ArrayList(Pin) = .empty;
         if (sets) try inputs.append(a, run_in);
-        if (where.on == .target) try inputs.append(a, .{ .name = "target", .type = where.of });
+        if (where.on == .target) try inputs.append(a, .{ .name = "target", .type = target });
         if (sets) {
             try inputs.append(a, .{ .name = "value", .type = f.type });
             try outputs.append(a, run_out);
@@ -320,15 +361,48 @@ const Builder = struct {
         });
     }
 
-    /// What a file a graph may import declares: its functions on the name
-    /// its import gives it, and its structs' methods on a value of theirs.
+    /// What a value built into the language has, on a value a link
+    /// brings: a list's `push` and `len`, a signal's `connect`.
+    fn value(b: *Builder, t: *const service.CatalogType) Allocator.Error!void {
+        const of = valueType(t.name);
+        const category = try std.fmt.allocPrint(b.arena, "{c}{s}", .{ std.ascii.toUpper(t.name[0]), t.name[1..] });
+        for (t.members) |*m| switch (m.kind) {
+            // What a list or a string gives back changes nothing of it -
+            // but `push`, `pop` and the rest of what gives nothing, which
+            // run in order.
+            .method => try b.callOn(m, .{ .on = .target, .of = t.name, .category = category }, of, m.type.len == 0 or std.mem.eql(u8, m.name, "pop") or std.mem.eql(u8, m.name, "remove") or std.mem.eql(u8, t.name, "signal")),
+            .field => try b.memberOn(m, .{ .on = .target, .of = t.name, .category = category }, of, "get"),
+            else => {},
+        };
+    }
+
+    /// Each member of an enum, as a value.
+    fn enumeration(b: *Builder, name: []const u8, values: []const []const u8, category: []const u8) Allocator.Error!void {
+        for (values) |member_name| try b.add(.{
+            .key = try std.fmt.allocPrint(b.arena, "enum.member:{s}.{s}", .{ name, member_name }),
+            .title = try std.fmt.allocPrint(b.arena, "{s}.{s}", .{ name, member_name }),
+            .category = category,
+            .outputs = try b.pins(&.{.{ .name = "out", .type = name }}),
+            .made = .{ .kind = "enum.member", .type = name, .member = member_name },
+        });
+    }
+
+    /// What a file a graph may import declares, or a module built in: its
+    /// functions and constants on the name its import gives it, its
+    /// structs made and their methods on a value of theirs, and its enums'
+    /// members.
     fn module(b: *Builder, m: *const service.CatalogModule) Allocator.Error!void {
-        const name = try importName(b.arena, m.path);
+        const name = if (m.builtin) m.path else try importName(b.arena, m.path);
         const import: model.Import = .{ .name = name, .path = m.path };
-        for (m.functions) |*f| try b.call(f, .{ .on = .global, .of = name, .category = name, .import = import }, f.annotation("pure") == null);
+        for (m.functions) |*f| try b.call(f, .{ .on = .global, .of = name, .category = name, .import = import }, if (m.builtin) f.waits else f.annotation("pure") == null);
+        for (m.constants) |*c| try b.member(c, .{ .on = .global, .of = name, .category = name, .import = import }, "get");
         for (m.types) |*t| {
-            if (t.kind != .@"struct") continue;
             const of = try std.fmt.allocPrint(b.arena, "{s}.{s}", .{ name, t.name });
+            if (t.kind == .@"enum") {
+                try b.enumeration(of, t.values, name);
+                continue;
+            }
+            try b.maker(t, of, import);
             for (t.members) |*f| switch (f.kind) {
                 .method => try b.call(f, .{ .on = .target, .of = of, .category = of, .import = import }, f.annotation("pure") == null),
                 .field => {
@@ -340,10 +414,40 @@ const Builder = struct {
         }
     }
 
+    /// A struct made: each field a pin, given or left at its default.
+    fn maker(b: *Builder, t: *const service.CatalogType, of: []const u8, import: ?model.Import) Allocator.Error!void {
+        const a = b.arena;
+        var inputs: std.ArrayList(Pin) = .empty;
+        var fields: std.ArrayList([]const u8) = .empty;
+        for (t.members) |m| if (m.kind == .field) {
+            try inputs.append(a, .{ .name = m.name, .type = m.type, .default = "" });
+            try fields.append(a, m.name);
+        };
+        try b.add(.{
+            .key = try std.fmt.allocPrint(a, "make:{s}", .{of}),
+            .title = try std.fmt.allocPrint(a, "Make {s}", .{t.name}),
+            .category = of,
+            .doc = t.doc,
+            .inputs = inputs.items,
+            .outputs = try b.pins(&.{.{ .name = "out", .type = of }}),
+            .made = .{ .kind = "make.struct", .call = .{ .on = .none, .of = of, .name = t.name, .args = fields, .action = false } },
+            .import = import,
+        });
+    }
+
     /// The graph's own: its variables read and set, its signals emitted,
-    /// its functions called.
+    /// its functions called and given as values, each function's own
+    /// variables.
     fn own(b: *Builder, file: *const model.File) Allocator.Error!void {
         const a = b.arena;
+        for (file.functions.items) |f| {
+            try b.add(.{ .key = try std.fmt.allocPrint(a, "function.ref:{s}", .{f.name}), .title = try std.fmt.allocPrint(a, "{s} as a value", .{f.name}), .category = "Functions", .doc = "The function, to connect to a signal or to call later.", .outputs = try b.pins(&.{.{ .name = "out", .type = "fn" }}), .made = .{ .kind = "function.ref", .member = f.name } });
+            for (f.locals.items) |l| {
+                if (b.has(try std.fmt.allocPrint(a, "local.get:{s}", .{l.name}))) continue;
+                try b.add(.{ .key = try std.fmt.allocPrint(a, "local.get:{s}", .{l.name}), .title = try std.fmt.allocPrint(a, "Get {s}", .{l.name}), .category = "Locals", .outputs = try b.pins(&.{.{ .name = "out", .type = l.type }}), .made = .{ .kind = "local.get", .member = l.name } });
+                try b.add(.{ .key = try std.fmt.allocPrint(a, "local.set:{s}", .{l.name}), .title = try std.fmt.allocPrint(a, "Set {s}", .{l.name}), .category = "Locals", .inputs = try b.pins(&.{ run_in, .{ .name = "value", .type = l.type } }), .outputs = try b.pins(&.{run_out}), .made = .{ .kind = "local.set", .member = l.name } });
+            }
+        }
         for (file.variables.items) |v| {
             try b.add(.{ .key = try std.fmt.allocPrint(a, "var.get:{s}", .{v.name}), .title = try std.fmt.allocPrint(a, "Get {s}", .{v.name}), .category = "Variables", .doc = if (v.doc.len > 0) v.doc else null, .outputs = try b.pins(&.{.{ .name = "out", .type = v.type }}), .made = .{ .kind = "var.get", .member = v.name } });
             try b.add(.{ .key = try std.fmt.allocPrint(a, "var.set:{s}", .{v.name}), .title = try std.fmt.allocPrint(a, "Set {s}", .{v.name}), .category = "Variables", .doc = if (v.doc.len > 0) v.doc else null, .inputs = try b.pins(&.{ run_in, .{ .name = "value", .type = v.type } }), .outputs = try b.pins(&.{run_out}), .made = .{ .kind = "var.set", .member = v.name } });
@@ -435,6 +539,11 @@ fn pinOf(arena: Allocator, f: *const model.Function, catalog: *const Catalog, n:
         return null;
     }
     if (side == .output and std.mem.eql(u8, n.kind, "flow.sequence") and std.mem.startsWith(u8, name, "then_")) return .{ .name = name, .run = true };
+    if (side == .output and std.mem.eql(u8, n.kind, "flow.switch") and std.mem.startsWith(u8, name, "case_")) return .{ .name = name, .run = true };
+    if (side == .input and std.mem.eql(u8, n.kind, "make.text")) {
+        for (try compile.textPins(arena, n.member)) |pin| if (std.mem.eql(u8, pin, name)) return .{ .name = name };
+        return null;
+    }
     const entry = catalog.find(try keyOf(arena, n)) orelse return null;
     return if (side == .input) if (entry.input(name)) |p| p.* else null else if (entry.output(name)) |p| p.* else null;
 }
@@ -447,6 +556,9 @@ pub fn fits(given: []const u8, wanted: []const u8) bool {
     if (std.mem.eql(u8, given, wanted)) return true;
     if (std.mem.eql(u8, given, "int") and std.mem.eql(u8, wanted, "float")) return true;
     if (wanted[0] == '?') return fits(given, wanted[1..]);
+    // A built-in value's methods take any list, or any map.
+    if (std.mem.eql(u8, wanted, "[any]") and given[0] == '[' and std.mem.indexOfScalar(u8, given, ':') == null) return true;
+    if (std.mem.eql(u8, wanted, "[any: any]") and given[0] == '[' and std.mem.indexOfScalar(u8, given, ':') != null) return true;
     return false;
 }
 

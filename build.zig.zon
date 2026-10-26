@@ -10,8 +10,8 @@
     .dependencies = .{
         // For what a script can call: the catalog its nodes come from.
         .fluxion_script = .{
-            .url = "git+https://github.com/kisstp2006/fluxion-script#6c01fa3aeaccc814eb7b23222563c641c6a1eec2",
-            .hash = "fluxion_script-0.2.1-rt2DKouVFQAbWOWASDHXb1MT4hJ7jJ_5-VpYnDu7GvWB",
+            .url = "git+https://github.com/kisstp2006/fluxion-script#7c61f41fdc2117860a126594064c1d6abe251081",
+            .hash = "fluxion_script-0.2.1-rt2DKjCnFQDjoBcfPjGUqtROseQsqdfH3Y4kA-9pZ8W1",
         },
         // The editor's widget draws with it: the commit the engine pins.
         .fluxion_ui = .{

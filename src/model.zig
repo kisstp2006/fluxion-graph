@@ -86,6 +86,9 @@ pub const Function = struct {
     /// What it gives back, as Flux writes a type; empty for nothing.
     result: []const u8 = "",
     doc: []const u8 = "",
+    /// Its own variables, gone when it returns: `local.get` and
+    /// `local.set` name them.
+    locals: std.ArrayList(Variable) = .empty,
     nodes: std.ArrayList(Node) = .empty,
     links: std.ArrayList(Link) = .empty,
     /// Boxes drawn round nodes, with words in them.
@@ -119,10 +122,13 @@ pub const Node = struct {
     kind: []const u8,
     /// Where it is on the canvas.
     at: [2]f32 = .{ 0, 0 },
-    /// What it names: the variable a `var.get` reads, the signal a
-    /// `signal.emit` emits.
+    /// What it names: the variable a `var.get` or a `local.get` reads, the
+    /// signal a `signal.emit` emits, the function a `function.ref` gives,
+    /// the member an `enum.member` is, the words a `make.text` writes with
+    /// `{pin}` for each value.
     member: []const u8 = "",
-    /// The type of the value a `literal` gives, as Flux writes it.
+    /// The type a `literal` gives, an `is` tests for, an `enum.member` is
+    /// of, as Flux writes it.
     type: []const u8 = "",
     /// What a `call` calls: written into the node when it is made, so a
     /// graph compiles with nothing but itself - a game's runtime has no

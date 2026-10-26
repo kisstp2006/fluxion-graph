@@ -56,7 +56,23 @@ pub fn shapeOf(arena: Allocator, f: *const model.Function, nodes: *const catalog
         for (f.params.items, outputs[1..]) |p, *pin| pin.* = .{ .name = p.name, .type = p.type };
         return .{ .title = f.name, .category = if (f.kind == .event) "Events" else "Functions", .inputs = &.{}, .outputs = outputs };
     }
-    if (nodes.find(try catalog.keyOf(arena, n))) |e| return .{ .title = e.title, .category = e.category, .inputs = e.inputs, .outputs = e.outputs };
+    if (nodes.find(try catalog.keyOf(arena, n))) |e| {
+        var shape: Shape = .{ .title = e.title, .category = e.category, .inputs = e.inputs, .outputs = e.outputs };
+        // Pins the node says itself: a switch's cases, a text's values.
+        if (std.mem.eql(u8, n.kind, "flow.switch")) if (n.call) |call| {
+            const outputs = try arena.alloc(catalog.Pin, call.args.items.len + e.outputs.len);
+            for (call.args.items, 0..) |_, i| outputs[i] = .{ .name = try std.fmt.allocPrint(arena, "case_{d}", .{i}), .run = true };
+            @memcpy(outputs[call.args.items.len..], e.outputs);
+            shape.outputs = outputs;
+        };
+        if (std.mem.eql(u8, n.kind, "make.text")) {
+            const names = try graph.compile.textPins(arena, n.member);
+            const inputs = try arena.alloc(catalog.Pin, names.len);
+            for (names, inputs) |name, *pin| pin.* = .{ .name = name };
+            shape.inputs = inputs;
+        }
+        return shape;
+    }
     // Not known now: its pins as its links and values name them, so what it
     // was is still seen, and can be taken out.
     var inputs: std.ArrayList(catalog.Pin) = .empty;

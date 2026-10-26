@@ -125,6 +125,10 @@ const expressions = [_]Template{
     .{ .kind = "make.color", .text = "color({r}, {g}, {b}, {a})" },
     .{ .kind = "convert.to_float", .text = "float({value})" },
     .{ .kind = "convert.to_int", .text = "int({value})" },
+    .{ .kind = "logic.orelse", .text = "({a} orelse {b})" },
+    .{ .kind = "value.unwrap", .text = "{value}.?" },
+    .{ .kind = "value.catch", .text = "({value} catch {fallback})" },
+    .{ .kind = "compare.is_null", .text = "({value} == null)" },
     .{ .kind = "self", .text = "self" },
     .{ .kind = "self.entity", .text = "self.entity" },
 };
@@ -256,6 +260,12 @@ const Writer = struct {
         const result = if (f.result.len > 0) try std.fmt.allocPrint(w.arena, " {s}", .{f.result}) else "";
         try w.line(0, "fn {s}(self{s}{s}){s} {{", .{ name, if (listed.len > 0) ", " else "", listed, result });
         w.depth += 1;
+        for (f.locals.items) |l| {
+            const local = try w.named(0, l.name);
+            if (l.default == .null) {
+                try w.line(0, "var {s}: {s};", .{ local, l.type });
+            } else try w.line(0, "var {s}: {s} = {s};", .{ local, l.type, try w.literal(0, l.default, l.type) });
+        }
         const entry = for (f.nodes.items) |*n| {
             if (std.mem.eql(u8, n.kind, model.entry_kind)) break n;
         } else null;
@@ -280,6 +290,34 @@ const Writer = struct {
             if (l.from.node == from and std.mem.eql(u8, l.from.pin, pin)) return w.function.node(l.to.node);
         }
         return null;
+    }
+
+    fn isLinkedInto(w: *Writer, node: u32, pin: []const u8) bool {
+        for (w.function.links.items) |l| if (l.to.node == node and std.mem.eql(u8, l.to.pin, pin)) return true;
+        return false;
+    }
+
+    /// Words with values in them, as an f-string writes them: `member` with
+    /// each `{pin}` given what the pin is given.
+    fn formatted(w: *Writer, n: *const Node) Allocator.Error![]const u8 {
+        var out: std.ArrayList(u8) = .empty;
+        try out.appendSlice(w.arena, "f\"");
+        var rest = n.member;
+        while (rest.len > 0) {
+            const open = std.mem.indexOfScalar(u8, rest, '{') orelse {
+                try out.appendSlice(w.arena, try quoteInner(w.arena, rest));
+                break;
+            };
+            const close = std.mem.indexOfScalarPos(u8, rest, open, '}') orelse {
+                try out.appendSlice(w.arena, try quoteInner(w.arena, rest));
+                break;
+            };
+            try out.appendSlice(w.arena, try quoteInner(w.arena, rest[0..open]));
+            try out.print(w.arena, "{{{s}}}", .{try w.input(n, rest[open + 1 .. close])});
+            rest = rest[close + 1 ..];
+        }
+        try out.append(w.arena, '"');
+        return out.items;
     }
 
     fn isLinkedFrom(w: *Writer, node: u32, pin: []const u8) bool {
@@ -309,6 +347,39 @@ const Writer = struct {
             try w.line(n.id, "{s}{s} = {s};", .{ try w.receiver(n, call), try w.named(n.id, call.name), try w.input(n, "value") });
             return w.chain(n.id, run_out);
         }
+        if (eql(kind, "local.set")) {
+            try w.line(n.id, "{s} = {s};", .{ try w.named(n.id, n.member), try w.input(n, "value") });
+            return w.chain(n.id, run_out);
+        }
+        if (eql(kind, "flow.await")) {
+            const value = try w.input(n, "value");
+            if (w.isLinkedFrom(n.id, result_pin)) {
+                try w.line(n.id, "const n{d} = await {s};", .{ n.id, value });
+                try w.made.put(w.arena, n.id, {});
+            } else try w.line(n.id, "await {s};", .{value});
+            return w.chain(n.id, run_out);
+        }
+        if (eql(kind, "flow.switch")) {
+            // Each case as written - `.idle`, `3`, `"w"` - a prong; the rest
+            // to `else`.
+            const call = n.call orelse return w.problem(n.id, "a switch with no cases", .{});
+            try w.line(n.id, "switch ({s}) {{", .{try w.input(n, "value")});
+            w.depth += 1;
+            var buffer: [24]u8 = undefined;
+            for (call.args.items, 0..) |case, i| {
+                try w.line(n.id, "{s} => {{", .{case});
+                try w.block(n.id, std.fmt.bufPrint(&buffer, "case_{d}", .{i}) catch unreachable);
+                try w.line(n.id, "}},", .{});
+            }
+            try w.line(n.id, "else => {{", .{});
+            try w.block(n.id, "else");
+            try w.line(n.id, "}},", .{});
+            w.depth -= 1;
+            try w.line(n.id, "}}", .{});
+            return w.chain(n.id, run_out);
+        }
+        if (eql(kind, "flow.break")) return w.line(n.id, "break;", .{});
+        if (eql(kind, "flow.continue")) return w.line(n.id, "continue;", .{});
         if (eql(kind, "var.set")) {
             try w.line(n.id, "self.{s} = {s};", .{ try w.named(n.id, n.member), try w.input(n, "value") });
             return w.chain(n.id, run_out);
@@ -426,13 +497,14 @@ const Writer = struct {
             try w.problem(id, "a loop gives no {s}", .{pin});
             return "null";
         }
-        if (eql(kind, "call")) if (n.call) |call| if (call.action) {
+        const acts = eql(kind, "flow.await") or (eql(kind, "call") and if (n.call) |call| call.action else false);
+        if (acts) {
             if (!w.made.contains(id)) {
                 try w.problem(id, "its {s} is used before it runs", .{pin});
                 return "null";
             }
             return std.fmt.allocPrint(w.arena, "n{d}", .{id});
-        };
+        }
 
         // An expression: worked out here, each time it is used.
         if (w.evaluating.contains(id)) {
@@ -449,6 +521,29 @@ const Writer = struct {
             return w.callText(n, call);
         }
         if (eql(kind, "var.get")) return std.fmt.allocPrint(w.arena, "self.{s}", .{try w.named(id, n.member)});
+        if (eql(kind, "local.get")) return w.named(id, n.member);
+        if (eql(kind, "function.ref")) return std.fmt.allocPrint(w.arena, "self.{s}", .{try w.named(id, n.member)});
+        if (eql(kind, "enum.member")) return std.fmt.allocPrint(w.arena, "{s}.{s}", .{ try w.typeName(id, n.type), try w.named(id, n.member) });
+        if (eql(kind, "value.is")) return std.fmt.allocPrint(w.arena, "({s} is {s})", .{ try w.input(n, "value"), try w.typeName(id, n.type) });
+        if (eql(kind, "make.struct")) {
+            const call = n.call orelse {
+                try w.problem(id, "it names no struct", .{});
+                return "null";
+            };
+            // The fields given - by a link or on the node - and the rest
+            // their defaults.
+            var out: std.ArrayList(u8) = .empty;
+            try out.print(w.arena, "{s}{{", .{try w.typeName(id, call.of)});
+            var given: usize = 0;
+            for (call.args.items) |field| {
+                if (!w.isLinkedInto(id, field) and n.valueOf(field) == null) continue;
+                try out.print(w.arena, "{s} .{s} = {s}", .{ if (given > 0) "," else "", try w.named(id, field), try w.input(n, field) });
+                given += 1;
+            }
+            try out.appendSlice(w.arena, if (given > 0) " }" else "}");
+            return out.items;
+        }
+        if (eql(kind, "make.text")) return w.formatted(n);
         if (eql(kind, "member.get")) {
             const call = n.call orelse {
                 try w.problem(id, "it names nothing to read", .{});
@@ -583,6 +678,28 @@ fn float(arena: Allocator, f: f64) Allocator.Error![]const u8 {
     const text = try std.fmt.allocPrint(arena, "{d}", .{f});
     for (text) |c| if (c == '.' or c == 'e') return text;
     return std.fmt.allocPrint(arena, "{s}.0", .{text});
+}
+
+/// The pins `{name}` in a `make.text`'s words name, in order, each once.
+pub fn textPins(arena: Allocator, words: []const u8) Allocator.Error![]const []const u8 {
+    var out: std.ArrayList([]const u8) = .empty;
+    var rest = words;
+    while (std.mem.indexOfScalar(u8, rest, '{')) |open| {
+        const close = std.mem.indexOfScalarPos(u8, rest, open, '}') orelse break;
+        const name = rest[open + 1 .. close];
+        const seen = for (out.items) |o| {
+            if (eql(o, name)) break true;
+        } else false;
+        if (name.len > 0 and !seen) try out.append(arena, name);
+        rest = rest[close + 1 ..];
+    }
+    return out.items;
+}
+
+/// Text as it goes between quotes.
+fn quoteInner(arena: Allocator, text: []const u8) Allocator.Error![]const u8 {
+    const quoted = try quote(arena, text);
+    return quoted[1 .. quoted.len - 1];
 }
 
 /// Text in quotes, as Flux reads it back the same.
@@ -784,6 +901,100 @@ test "loops give their items inside, an action's value is held, and literals are
         \\            print(n3);
         \\        }
         \\        return 7;
+        \\    }
+        \\}
+        \\
+    , made.text);
+}
+
+test "what Flux writes, a graph writes too: locals, awaits, switches, words with values, structs made, enum members, functions as values, null and errors" {
+    var graph: Graph = try .init(testing.allocator);
+    defer graph.deinit();
+    graph.file.name = "Parity";
+    const a = graph.allocator();
+    try graph.addImport("weather", "weather.flux");
+    _ = try graph.addSignal("rang", &.{});
+    const tick = try graph.addFunction("tick", .function);
+    try graph.addLocal(tick, .{ .name = "count", .type = "int", .default = .{ .int = 0 } });
+    // count = 3; await self.rang; switch (count) { 3 => print(f"n={count}") else => break }
+    const set = try graph.addNode(tick, "local.set", .{ 0, 0 });
+    tick.node(set).?.member = "count";
+    try graph.setValue(tick, set, "value", .{ .int = 3 });
+    try graph.connect(tick, .{ .node = 1, .pin = run_out }, .{ .node = set, .pin = run_in });
+    const rang = try graph.addNode(tick, "var.get", .{ 0, 0 });
+    tick.node(rang).?.member = "rang";
+    const wait_for = try graph.addNode(tick, "flow.await", .{ 0, 0 });
+    try graph.connect(tick, .{ .node = set, .pin = run_out }, .{ .node = wait_for, .pin = run_in });
+    try graph.connect(tick, .{ .node = rang, .pin = "out" }, .{ .node = wait_for, .pin = "value" });
+    const count = try graph.addNode(tick, "local.get", .{ 0, 0 });
+    tick.node(count).?.member = "count";
+    const choose = try graph.addNode(tick, "flow.switch", .{ 0, 0 });
+    var cases: std.ArrayList([]const u8) = .empty;
+    try cases.append(a, "3");
+    tick.node(choose).?.call = .{ .name = "switch", .args = cases };
+    try graph.connect(tick, .{ .node = wait_for, .pin = run_out }, .{ .node = choose, .pin = run_in });
+    try graph.connect(tick, .{ .node = count, .pin = "out" }, .{ .node = choose, .pin = "value" });
+    const words = try graph.addNode(tick, "make.text", .{ 0, 0 });
+    tick.node(words).?.member = "n={count}!";
+    try graph.connect(tick, .{ .node = count, .pin = "out" }, .{ .node = words, .pin = "count" });
+    const say = try graph.addNode(tick, "flow.print", .{ 0, 0 });
+    try graph.connect(tick, .{ .node = choose, .pin = "case_0" }, .{ .node = say, .pin = run_in });
+    try graph.connect(tick, .{ .node = words, .pin = "out" }, .{ .node = say, .pin = "value" });
+    // print(weather.Cloud{ .size = 2.0 }, Mode.fast, self.tick, x orelse 1, ...)
+    const cloud = try graph.addNode(tick, "make.struct", .{ 0, 0 });
+    var fields: std.ArrayList([]const u8) = .empty;
+    try fields.append(a, "size");
+    try fields.append(a, "name");
+    tick.node(cloud).?.call = .{ .of = "weather.Cloud", .name = "Cloud", .args = fields, .action = false };
+    try graph.setValue(tick, cloud, "size", .{ .float = 2 });
+    const say_cloud = try graph.addNode(tick, "flow.print", .{ 0, 0 });
+    try graph.connect(tick, .{ .node = say, .pin = run_out }, .{ .node = say_cloud, .pin = run_in });
+    try graph.connect(tick, .{ .node = cloud, .pin = "out" }, .{ .node = say_cloud, .pin = "value" });
+    const mode = try graph.addNode(tick, "enum.member", .{ 0, 0 });
+    tick.node(mode).?.type = "weather.Mode";
+    tick.node(mode).?.member = "fast";
+    const is = try graph.addNode(tick, "value.is", .{ 0, 0 });
+    tick.node(is).?.type = "weather.Mode";
+    try graph.connect(tick, .{ .node = mode, .pin = "out" }, .{ .node = is, .pin = "value" });
+    const say_is = try graph.addNode(tick, "flow.print", .{ 0, 0 });
+    try graph.connect(tick, .{ .node = say_cloud, .pin = run_out }, .{ .node = say_is, .pin = run_in });
+    try graph.connect(tick, .{ .node = is, .pin = "out" }, .{ .node = say_is, .pin = "value" });
+    const stop = try graph.addNode(tick, "flow.break", .{ 0, 0 });
+    try graph.connect(tick, .{ .node = choose, .pin = "else" }, .{ .node = stop, .pin = run_in });
+    const self_ref = try graph.addNode(tick, "function.ref", .{ 0, 0 });
+    tick.node(self_ref).?.member = "tick";
+    const connect_it = try graph.addNode(tick, "call", .{ 0, 0 });
+    var target_args: std.ArrayList([]const u8) = .empty;
+    try target_args.append(a, "target_fn");
+    tick.node(connect_it).?.call = .{ .on = .target, .of = "signal", .name = "connect", .args = target_args };
+    try graph.connect(tick, .{ .node = say_is, .pin = run_out }, .{ .node = connect_it, .pin = run_in });
+    try graph.connect(tick, .{ .node = rang, .pin = "out" }, .{ .node = connect_it, .pin = "target" });
+    try graph.connect(tick, .{ .node = self_ref, .pin = "out" }, .{ .node = connect_it, .pin = "target_fn" });
+
+    var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer arena.deinit();
+    const made = try compile(arena.allocator(), &graph.file, .{});
+    try testing.expectEqual(@as(usize, 0), made.problems.len);
+    try testing.expectEqualStrings(
+        \\// Made from a graph by fluxion-graph: the graph is what to change.
+        \\const weather = @import("weather.flux");
+        \\struct Parity {
+        \\    signal rang();
+        \\    fn tick(self) {
+        \\        var count: int = 0;
+        \\        count = 3;
+        \\        await self.rang;
+        \\        switch (count) {
+        \\            3 => {
+        \\                print(f"n={count}!");
+        \\                print(weather.Cloud{ .size = 2.0 });
+        \\                print((weather.Mode.fast is weather.Mode));
+        \\                self.rang.connect(self.tick);
+        \\            },
+        \\            else => {
+        \\                break;
+        \\            },
+        \\        }
         \\    }
         \\}
         \\
