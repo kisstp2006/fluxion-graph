@@ -222,6 +222,51 @@ pub fn curve(from: Point, to: Point, into: []Point) []Point {
     return into;
 }
 
+/// The nodes put in order, left to right: each one column past every node
+/// a link brings it something from - its run or its values - and the
+/// nodes of a column one under another, by id. What a graph made by hand
+/// or by a program looks like once it is tidied.
+pub fn arrange(arena: Allocator, f: *model.Function, nodes: *const catalog.Catalog, m: Metrics) Allocator.Error!void {
+    const placed = try place(arena, f, nodes, m);
+    const columns = try arena.alloc(u32, f.nodes.items.len);
+    @memset(columns, 0);
+    // Longest way in, a round at a time: as many rounds as there are nodes
+    // at most, so a ring - a mistake - ends too.
+    var round: usize = 0;
+    while (round < f.nodes.items.len) : (round += 1) {
+        var moved = false;
+        for (f.links.items) |l| {
+            const from = indexOfNode(f, l.from.node) orelse continue;
+            const to = indexOfNode(f, l.to.node) orelse continue;
+            if (columns[to] < columns[from] + 1) {
+                columns[to] = columns[from] + 1;
+                moved = true;
+            }
+        }
+        if (!moved) break;
+    }
+    var widest: u32 = 0;
+    for (columns) |c| widest = @max(widest, c);
+    var x: f32 = 0;
+    var column: u32 = 0;
+    while (column <= widest) : (column += 1) {
+        var y: f32 = 0;
+        var width: f32 = 0;
+        for (f.nodes.items, placed, columns) |*n, one, c| {
+            if (c != column) continue;
+            n.at = .{ x, y };
+            y += one.size[1] + m.row * 2;
+            width = @max(width, one.size[0]);
+        }
+        x += width + m.row * 3;
+    }
+}
+
+fn indexOfNode(f: *const model.Function, id: u32) ?usize {
+    for (f.nodes.items, 0..) |n, i| if (n.id == id) return i;
+    return null;
+}
+
 /// The box round every node, for showing them all.
 pub fn bounds(placed: []const Placed) ?[2]Point {
     if (placed.len == 0) return null;
@@ -271,6 +316,34 @@ test "a node is as big as its pins and words, a pin is on its edge, and a point 
     defer picked.deinit(testing.allocator);
     try inside(placed, .{ 250, 50 }, .{ 900, 400 }, &picked, testing.allocator);
     try testing.expectEqualSlices(u32, &.{add}, picked.items);
+}
+
+test "arranged, each node is a column past what its links bring it from" {
+    var arena_state: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    var g: graph.Graph = try .init(testing.allocator);
+    defer g.deinit();
+    const ready = try g.addFunction("ready", .event);
+    const say = try g.addNode(ready, "flow.print", .{ 0, 0 });
+    const text = try g.addNode(ready, "make.text", .{ 0, 0 });
+    const again = try g.addNode(ready, "flow.print", .{ 0, 0 });
+    try g.connect(ready, .{ .node = 1, .pin = "then" }, .{ .node = say, .pin = "run" });
+    try g.connect(ready, .{ .node = say, .pin = "then" }, .{ .node = again, .pin = "run" });
+    try g.connect(ready, .{ .node = text, .pin = "out" }, .{ .node = again, .pin = "value" });
+    const service = @import("fluxion_script").service;
+    const none: service.Catalog = .{ .types = &.{}, .globals = &.{}, .hooks = &.{}, .builtins = &.{}, .modules = &.{} };
+    const b = try catalog.build(arena, none, &g.file, .{});
+    try arrange(arena, ready, &b, .{});
+    const x = struct {
+        fn of(f: *model.Function, id: u32) f32 {
+            return f.node(id).?.at[0];
+        }
+    }.of;
+    try testing.expect(x(ready, 1) < x(ready, say));
+    try testing.expect(x(ready, say) < x(ready, again));
+    try testing.expect(x(ready, text) < x(ready, again));
+    try testing.expectEqual(x(ready, text), x(ready, 1));
 }
 
 test "a link's curve leaves its output and comes into its input level" {

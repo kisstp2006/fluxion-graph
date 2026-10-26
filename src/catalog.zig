@@ -328,8 +328,11 @@ const Builder = struct {
         for (f.params) |p| {
             // A rest of values - `print(values: any...)` - is one pin.
             const t = if (std.mem.endsWith(u8, p.type, "...")) p.type[0 .. p.type.len - 3] else p.type;
-            try inputs.append(a, .{ .name = p.name, .type = t, .default = p.default });
-            try args.append(a, p.name);
+            // One called what the value it is on is called - a signal's
+            // `connect(target)` - is told apart.
+            const name = if (where.on == .target and std.mem.eql(u8, p.name, "target")) "target_value" else p.name;
+            try inputs.append(a, .{ .name = name, .type = t, .default = p.default });
+            try args.append(a, name);
         }
         if (action) try outputs.append(a, run_out);
         if (f.type.len > 0) try outputs.append(a, .{ .name = compile.result_pin, .type = f.type });

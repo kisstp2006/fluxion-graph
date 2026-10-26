@@ -121,7 +121,7 @@
             "of": "signal",
             "name": "connect",
             "args": [
-              "target_fn"
+              "target_value"
             ],
             "gives": false,
             "action": true,
@@ -978,7 +978,7 @@
           },
           "to": {
             "node": 7,
-            "pin": "target_fn"
+            "pin": "target_value"
           }
         },
         {
