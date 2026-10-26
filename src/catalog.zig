@@ -183,8 +183,8 @@ const Builder = struct {
         const out: Pin = .{ .name = "out" };
         const out_bool: Pin = .{ .name = "out", .type = "bool" };
         const binary = [_]struct { []const u8, []const u8, []const u8 }{
-            .{ "math.add", "Add", "Math" },               .{ "math.subtract", "Subtract", "Math" },
-            .{ "math.multiply", "Multiply", "Math" },     .{ "math.divide", "Divide", "Math" },
+            .{ "math.add", "Add", "Math" },           .{ "math.subtract", "Subtract", "Math" },
+            .{ "math.multiply", "Multiply", "Math" }, .{ "math.divide", "Divide", "Math" },
             .{ "math.modulo", "Remainder", "Math" },
         };
         for (binary) |op| try b.add(.{ .key = op[0], .title = op[1], .category = op[2], .inputs = try b.pins(&.{ any_a, any_b }), .outputs = try b.pins(&.{out}), .made = .{ .kind = op[0] } });
