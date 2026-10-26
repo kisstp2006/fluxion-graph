@@ -1,0 +1,982 @@
+{
+  "fluxion_graph": 1,
+  "name": "Score",
+  "imports": [
+    {
+      "name": "helpers",
+      "path": "helpers.flux"
+    },
+    {
+      "name": "math",
+      "path": "math"
+    }
+  ],
+  "variables": [
+    {
+      "name": "total",
+      "type": "int",
+      "default": 0,
+      "exported": false
+    },
+    {
+      "name": "ranks",
+      "type": "[string]",
+      "default": null,
+      "exported": false
+    },
+    {
+      "name": "heard",
+      "type": "int",
+      "default": 0,
+      "exported": false
+    },
+    {
+      "name": "root",
+      "type": "float",
+      "default": 0.0,
+      "exported": false
+    }
+  ],
+  "signals": [
+    {
+      "name": "changed",
+      "params": [
+        {
+          "name": "total",
+          "type": "int"
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "name": "ready",
+      "kind": "event",
+      "params": [],
+      "result": "",
+      "locals": [],
+      "nodes": [
+        {
+          "id": 1,
+          "kind": "entry",
+          "at": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": 2,
+          "kind": "call",
+          "at": [
+            220.0,
+            0.0
+          ],
+          "call": {
+            "on": "global",
+            "of": "app",
+            "name": "find",
+            "args": [
+              "name"
+            ],
+            "gives": true,
+            "action": true,
+            "waits": false
+          },
+          "values": [
+            {
+              "pin": "name",
+              "value": "Player"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "kind": "value.unwrap",
+          "at": [
+            440.0,
+            0.0
+          ]
+        },
+        {
+          "id": 4,
+          "kind": "call",
+          "at": [
+            660.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "script",
+            "args": [],
+            "gives": true,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 5,
+          "kind": "member.get",
+          "at": [
+            880.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "collected",
+            "args": [],
+            "gives": false,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 6,
+          "kind": "function.ref",
+          "at": [
+            1100.0,
+            0.0
+          ],
+          "member": "on_heard"
+        },
+        {
+          "id": 7,
+          "kind": "call",
+          "at": [
+            1320.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "signal",
+            "name": "connect",
+            "args": [
+              "target_fn"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        }
+      ],
+      "links": [
+        {
+          "from": {
+            "node": 1,
+            "pin": "then"
+          },
+          "to": {
+            "node": 2,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "result"
+          },
+          "to": {
+            "node": 3,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "then"
+          },
+          "to": {
+            "node": 4,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "out"
+          },
+          "to": {
+            "node": 4,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 4,
+            "pin": "then"
+          },
+          "to": {
+            "node": 7,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 4,
+            "pin": "result"
+          },
+          "to": {
+            "node": 5,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 5,
+            "pin": "out"
+          },
+          "to": {
+            "node": 7,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 6,
+            "pin": "out"
+          },
+          "to": {
+            "node": 7,
+            "pin": "target_fn"
+          }
+        }
+      ],
+      "next_id": 8
+    },
+    {
+      "name": "on_heard",
+      "kind": "function",
+      "params": [
+        {
+          "name": "points",
+          "type": "int"
+        }
+      ],
+      "result": "",
+      "locals": [],
+      "nodes": [
+        {
+          "id": 1,
+          "kind": "entry",
+          "at": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": 2,
+          "kind": "var.get",
+          "at": [
+            220.0,
+            0.0
+          ],
+          "member": "heard"
+        },
+        {
+          "id": 3,
+          "kind": "math.add",
+          "at": [
+            440.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "kind": "var.set",
+          "at": [
+            660.0,
+            0.0
+          ],
+          "member": "heard"
+        }
+      ],
+      "links": [
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 3,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 1,
+            "pin": "then"
+          },
+          "to": {
+            "node": 4,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "out"
+          },
+          "to": {
+            "node": 4,
+            "pin": "value"
+          }
+        }
+      ],
+      "next_id": 5
+    },
+    {
+      "name": "on_collected",
+      "kind": "function",
+      "params": [
+        {
+          "name": "points",
+          "type": "int"
+        }
+      ],
+      "result": "",
+      "locals": [],
+      "nodes": [
+        {
+          "id": 1,
+          "kind": "entry",
+          "at": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": 2,
+          "kind": "var.get",
+          "at": [
+            220.0,
+            0.0
+          ],
+          "member": "total"
+        },
+        {
+          "id": 3,
+          "kind": "math.add",
+          "at": [
+            440.0,
+            0.0
+          ]
+        },
+        {
+          "id": 4,
+          "kind": "var.set",
+          "at": [
+            660.0,
+            0.0
+          ],
+          "member": "total"
+        },
+        {
+          "id": 5,
+          "kind": "call",
+          "at": [
+            880.0,
+            0.0
+          ],
+          "call": {
+            "on": "global",
+            "of": "helpers",
+            "name": "rank_of",
+            "args": [
+              "points"
+            ],
+            "gives": true,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 6,
+          "kind": "flow.switch",
+          "at": [
+            1100.0,
+            0.0
+          ],
+          "call": {
+            "on": "none",
+            "of": "",
+            "name": "switch",
+            "args": [
+              ".gold",
+              ".silver"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 7,
+          "kind": "var.get",
+          "at": [
+            1320.0,
+            0.0
+          ],
+          "member": "ranks"
+        },
+        {
+          "id": 8,
+          "kind": "call",
+          "at": [
+            1540.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          },
+          "values": [
+            {
+              "pin": "value",
+              "value": "gold"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "kind": "call",
+          "at": [
+            1760.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          },
+          "values": [
+            {
+              "pin": "value",
+              "value": "silver"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "kind": "call",
+          "at": [
+            1980.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          },
+          "values": [
+            {
+              "pin": "value",
+              "value": "bronze"
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "kind": "convert.to_float",
+          "at": [
+            2200.0,
+            0.0
+          ]
+        },
+        {
+          "id": 12,
+          "kind": "call",
+          "at": [
+            2420.0,
+            0.0
+          ],
+          "call": {
+            "on": "global",
+            "of": "math",
+            "name": "sqrt",
+            "args": [
+              "x"
+            ],
+            "gives": true,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 13,
+          "kind": "var.set",
+          "at": [
+            2640.0,
+            0.0
+          ],
+          "member": "root"
+        },
+        {
+          "id": 14,
+          "kind": "make.text",
+          "at": [
+            2860.0,
+            0.0
+          ],
+          "member": "score {total}"
+        },
+        {
+          "id": 15,
+          "kind": "flow.print",
+          "at": [
+            3080.0,
+            0.0
+          ]
+        },
+        {
+          "id": 16,
+          "kind": "signal.emit",
+          "at": [
+            3300.0,
+            0.0
+          ],
+          "member": "changed"
+        }
+      ],
+      "links": [
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 3,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 1,
+            "pin": "points"
+          },
+          "to": {
+            "node": 3,
+            "pin": "b"
+          }
+        },
+        {
+          "from": {
+            "node": 1,
+            "pin": "then"
+          },
+          "to": {
+            "node": 4,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "out"
+          },
+          "to": {
+            "node": 4,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 5,
+            "pin": "points"
+          }
+        },
+        {
+          "from": {
+            "node": 4,
+            "pin": "then"
+          },
+          "to": {
+            "node": 6,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 5,
+            "pin": "result"
+          },
+          "to": {
+            "node": 6,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 6,
+            "pin": "case_0"
+          },
+          "to": {
+            "node": 8,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 7,
+            "pin": "out"
+          },
+          "to": {
+            "node": 8,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 6,
+            "pin": "case_1"
+          },
+          "to": {
+            "node": 9,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 7,
+            "pin": "out"
+          },
+          "to": {
+            "node": 9,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 6,
+            "pin": "else"
+          },
+          "to": {
+            "node": 10,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 7,
+            "pin": "out"
+          },
+          "to": {
+            "node": 10,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 11,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "out"
+          },
+          "to": {
+            "node": 12,
+            "pin": "x"
+          }
+        },
+        {
+          "from": {
+            "node": 6,
+            "pin": "then"
+          },
+          "to": {
+            "node": 13,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 12,
+            "pin": "result"
+          },
+          "to": {
+            "node": 13,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 14,
+            "pin": "total"
+          }
+        },
+        {
+          "from": {
+            "node": 13,
+            "pin": "then"
+          },
+          "to": {
+            "node": 15,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 14,
+            "pin": "out"
+          },
+          "to": {
+            "node": 15,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 15,
+            "pin": "then"
+          },
+          "to": {
+            "node": 16,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 16,
+            "pin": "total"
+          }
+        }
+      ],
+      "next_id": 17
+    },
+    {
+      "name": "summary",
+      "kind": "function",
+      "params": [],
+      "result": "string",
+      "locals": [
+        {
+          "name": "count",
+          "type": "int",
+          "default": 0
+        }
+      ],
+      "nodes": [
+        {
+          "id": 1,
+          "kind": "entry",
+          "at": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": 2,
+          "kind": "var.get",
+          "at": [
+            220.0,
+            0.0
+          ],
+          "member": "ranks"
+        },
+        {
+          "id": 3,
+          "kind": "flow.for_each",
+          "at": [
+            440.0,
+            0.0
+          ]
+        },
+        {
+          "id": 4,
+          "kind": "local.get",
+          "at": [
+            660.0,
+            0.0
+          ],
+          "member": "count"
+        },
+        {
+          "id": 5,
+          "kind": "math.add",
+          "at": [
+            880.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "kind": "local.set",
+          "at": [
+            1100.0,
+            0.0
+          ],
+          "member": "count"
+        },
+        {
+          "id": 7,
+          "kind": "make.text",
+          "at": [
+            1320.0,
+            0.0
+          ],
+          "member": "{total} from {count}"
+        },
+        {
+          "id": 8,
+          "kind": "var.get",
+          "at": [
+            1540.0,
+            0.0
+          ],
+          "member": "total"
+        },
+        {
+          "id": 9,
+          "kind": "flow.return",
+          "at": [
+            1760.0,
+            0.0
+          ]
+        }
+      ],
+      "links": [
+        {
+          "from": {
+            "node": 1,
+            "pin": "then"
+          },
+          "to": {
+            "node": 3,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 3,
+            "pin": "list"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "body"
+          },
+          "to": {
+            "node": 6,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 4,
+            "pin": "out"
+          },
+          "to": {
+            "node": 5,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 5,
+            "pin": "out"
+          },
+          "to": {
+            "node": 6,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "then"
+          },
+          "to": {
+            "node": 9,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 8,
+            "pin": "out"
+          },
+          "to": {
+            "node": 7,
+            "pin": "total"
+          }
+        },
+        {
+          "from": {
+            "node": 4,
+            "pin": "out"
+          },
+          "to": {
+            "node": 7,
+            "pin": "count"
+          }
+        },
+        {
+          "from": {
+            "node": 7,
+            "pin": "out"
+          },
+          "to": {
+            "node": 9,
+            "pin": "value"
+          }
+        }
+      ],
+      "next_id": 10
+    }
+  ]
+}

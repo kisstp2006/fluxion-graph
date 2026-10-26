@@ -1,0 +1,438 @@
+{
+  "fluxion_graph": 1,
+  "name": "Coin",
+  "imports": [
+    {
+      "name": "helpers",
+      "path": "helpers.flux"
+    }
+  ],
+  "variables": [
+    {
+      "name": "value",
+      "type": "int",
+      "default": 5,
+      "exported": true
+    },
+    {
+      "name": "spin",
+      "type": "float",
+      "default": 3.0,
+      "exported": true
+    },
+    {
+      "name": "picked",
+      "type": "bool",
+      "default": false,
+      "exported": false
+    }
+  ],
+  "signals": [],
+  "functions": [
+    {
+      "name": "update",
+      "kind": "event",
+      "params": [
+        {
+          "name": "dt",
+          "type": "float"
+        }
+      ],
+      "result": "",
+      "locals": [],
+      "nodes": [
+        {
+          "id": 1,
+          "kind": "entry",
+          "at": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": 2,
+          "kind": "member.get",
+          "at": [
+            220.0,
+            0.0
+          ],
+          "call": {
+            "on": "component",
+            "of": "Transform2D",
+            "name": "rotation",
+            "args": [],
+            "gives": false,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 3,
+          "kind": "var.get",
+          "at": [
+            440.0,
+            0.0
+          ],
+          "member": "spin"
+        },
+        {
+          "id": 4,
+          "kind": "math.multiply",
+          "at": [
+            660.0,
+            0.0
+          ]
+        },
+        {
+          "id": 5,
+          "kind": "math.add",
+          "at": [
+            880.0,
+            0.0
+          ]
+        },
+        {
+          "id": 6,
+          "kind": "member.set",
+          "at": [
+            1100.0,
+            0.0
+          ],
+          "call": {
+            "on": "component",
+            "of": "Transform2D",
+            "name": "rotation",
+            "args": [],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        }
+      ],
+      "links": [
+        {
+          "from": {
+            "node": 1,
+            "pin": "dt"
+          },
+          "to": {
+            "node": 4,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "out"
+          },
+          "to": {
+            "node": 4,
+            "pin": "b"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 5,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 4,
+            "pin": "out"
+          },
+          "to": {
+            "node": 5,
+            "pin": "b"
+          }
+        },
+        {
+          "from": {
+            "node": 1,
+            "pin": "then"
+          },
+          "to": {
+            "node": 6,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 5,
+            "pin": "out"
+          },
+          "to": {
+            "node": 6,
+            "pin": "value"
+          }
+        }
+      ],
+      "next_id": 7
+    },
+    {
+      "name": "worth",
+      "kind": "function",
+      "params": [],
+      "result": "int",
+      "locals": [],
+      "nodes": [
+        {
+          "id": 1,
+          "kind": "entry",
+          "at": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": 2,
+          "kind": "var.get",
+          "at": [
+            220.0,
+            0.0
+          ],
+          "member": "value"
+        },
+        {
+          "id": 3,
+          "kind": "call",
+          "at": [
+            440.0,
+            0.0
+          ],
+          "call": {
+            "on": "global",
+            "of": "helpers",
+            "name": "bonus",
+            "args": [
+              "n"
+            ],
+            "gives": true,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 4,
+          "kind": "flow.return",
+          "at": [
+            660.0,
+            0.0
+          ]
+        }
+      ],
+      "links": [
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 3,
+            "pin": "n"
+          }
+        },
+        {
+          "from": {
+            "node": 1,
+            "pin": "then"
+          },
+          "to": {
+            "node": 4,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "result"
+          },
+          "to": {
+            "node": 4,
+            "pin": "value"
+          }
+        }
+      ],
+      "next_id": 5
+    },
+    {
+      "name": "pick",
+      "kind": "function",
+      "params": [
+        {
+          "name": "by",
+          "type": "Entity"
+        }
+      ],
+      "result": "",
+      "locals": [],
+      "nodes": [
+        {
+          "id": 1,
+          "kind": "entry",
+          "at": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": 2,
+          "kind": "var.set",
+          "at": [
+            220.0,
+            0.0
+          ],
+          "member": "picked",
+          "values": [
+            {
+              "pin": "value",
+              "value": true
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "kind": "call",
+          "at": [
+            440.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "Entity",
+            "name": "name",
+            "args": [],
+            "gives": true,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 4,
+          "kind": "make.text",
+          "at": [
+            660.0,
+            0.0
+          ],
+          "member": "picked by {who}"
+        },
+        {
+          "id": 5,
+          "kind": "flow.print",
+          "at": [
+            880.0,
+            0.0
+          ]
+        },
+        {
+          "id": 6,
+          "kind": "flow.await",
+          "at": [
+            1100.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "value",
+              "value": 0.05
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "kind": "call",
+          "at": [
+            1320.0,
+            0.0
+          ],
+          "call": {
+            "on": "entity",
+            "of": "",
+            "name": "despawn",
+            "args": [],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        }
+      ],
+      "links": [
+        {
+          "from": {
+            "node": 1,
+            "pin": "then"
+          },
+          "to": {
+            "node": 2,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 1,
+            "pin": "by"
+          },
+          "to": {
+            "node": 3,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "result"
+          },
+          "to": {
+            "node": 4,
+            "pin": "who"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "then"
+          },
+          "to": {
+            "node": 5,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 4,
+            "pin": "out"
+          },
+          "to": {
+            "node": 5,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 5,
+            "pin": "then"
+          },
+          "to": {
+            "node": 6,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 6,
+            "pin": "then"
+          },
+          "to": {
+            "node": 7,
+            "pin": "run"
+          }
+        }
+      ],
+      "next_id": 8
+    }
+  ]
+}

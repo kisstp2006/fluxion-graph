@@ -1,0 +1,12 @@
+{
+  "fluxion_project": 2,
+  "application": {
+    "name": "Graph and Flux",
+    "description": "A runner picking up coins: Flux scripts and graphs calling each other, each doing what the other does.",
+    "main_scene": "res://levels/meadow.json"
+  },
+  "display": {
+    "width": 640,
+    "height": 360
+  }
+}

@@ -55,6 +55,7 @@ The file is JSON. A node's `kind` is the name the catalog gives it (`flow.branch
 | `model` | What a graph's file holds: `File`, `Variable`, `Signal`, `Function`, `Node`, `Link`. |
 | `Graph` | A graph read, changed and written: its file and the memory it lives in, with the edits an editor makes (imports, functions, variables, signals, nodes, links, a pin's value). |
 | `catalog` | The kinds of node there are, each with its pins and the node it makes: built from `flux.service.catalog` and the graph's own variables, signals and functions; and `check`, the links checked by their pins' types. |
+| `tools/to_flux.zig` | `fluxion-graph-flux <file.fxgraph>`: the Flux a graph is made into, for a terminal. |
 | `compile` | A graph made into Flux text, with each line kept with the node it came from (`Compiled.lineAt`), and what cannot be written said at its node (`Problem`). |
 
 ## Nodes
@@ -112,6 +113,10 @@ What the hand does to it:
 - Delete, Ctrl+A and F take out, pick all and show all.
 
 What a pin is given, and which node to make (`Outcome.choose`: let go on nothing, a second press, the right button), are the program's to ask. Each `Outcome` that says `changed` is one step to undo.
+
+## A game of both
+
+`examples/graph-flux-game` is a small game that a Flux runner and referee and a graph score play, and that the swapped scene plays the other way round: a graph runner and referee, and a Flux score. Its `tools/run.sh <fluxion-runtime>` plays both, and each referee says whether calls, signals, structs and everything else crossed between the two as they should.
 
 ## Building
 

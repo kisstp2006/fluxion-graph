@@ -1,0 +1,1955 @@
+{
+  "fluxion_graph": 1,
+  "name": "Referee",
+  "imports": [],
+  "variables": [
+    {
+      "name": "changes",
+      "type": "int",
+      "default": 0,
+      "exported": false
+    }
+  ],
+  "signals": [],
+  "functions": [
+    {
+      "name": "ready",
+      "kind": "event",
+      "params": [],
+      "result": "",
+      "locals": [
+        {
+          "name": "wrong",
+          "type": "[string]",
+          "default": null
+        }
+      ],
+      "nodes": [
+        {
+          "id": 1,
+          "kind": "entry",
+          "at": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": 2,
+          "kind": "call",
+          "at": [
+            220.0,
+            0.0
+          ],
+          "call": {
+            "on": "global",
+            "of": "app",
+            "name": "find",
+            "args": [
+              "name"
+            ],
+            "gives": true,
+            "action": true,
+            "waits": false
+          },
+          "values": [
+            {
+              "pin": "name",
+              "value": "Score"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "kind": "value.unwrap",
+          "at": [
+            440.0,
+            0.0
+          ]
+        },
+        {
+          "id": 4,
+          "kind": "call",
+          "at": [
+            660.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "script",
+            "args": [],
+            "gives": true,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 5,
+          "kind": "member.get",
+          "at": [
+            880.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "changed",
+            "args": [],
+            "gives": false,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 6,
+          "kind": "function.ref",
+          "at": [
+            1100.0,
+            0.0
+          ],
+          "member": "on_changed"
+        },
+        {
+          "id": 7,
+          "kind": "call",
+          "at": [
+            1320.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "signal",
+            "name": "connect",
+            "args": [
+              "target_fn"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 8,
+          "kind": "flow.await",
+          "at": [
+            1540.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "value",
+              "value": 2.0
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "kind": "local.get",
+          "at": [
+            1760.0,
+            0.0
+          ],
+          "member": "wrong"
+        },
+        {
+          "id": 10,
+          "kind": "call",
+          "at": [
+            1980.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "script",
+            "args": [],
+            "gives": true,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 11,
+          "kind": "flow.sequence",
+          "at": [
+            2200.0,
+            0.0
+          ]
+        },
+        {
+          "id": 12,
+          "kind": "member.get",
+          "at": [
+            2420.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "total",
+            "args": [],
+            "gives": false,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 13,
+          "kind": "compare.not_equal",
+          "at": [
+            2640.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 70
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "kind": "flow.branch",
+          "at": [
+            2860.0,
+            0.0
+          ]
+        },
+        {
+          "id": 15,
+          "kind": "make.text",
+          "at": [
+            3080.0,
+            0.0
+          ],
+          "member": "total is {t}, not 70"
+        },
+        {
+          "id": 16,
+          "kind": "call",
+          "at": [
+            3300.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 17,
+          "kind": "member.get",
+          "at": [
+            3520.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "ranks",
+            "args": [],
+            "gives": false,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 18,
+          "kind": "literal",
+          "at": [
+            3740.0,
+            0.0
+          ],
+          "type": "[string]",
+          "values": [
+            {
+              "pin": "value",
+              "value": [
+                "silver",
+                "gold",
+                "gold"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 19,
+          "kind": "compare.not_equal",
+          "at": [
+            3960.0,
+            0.0
+          ]
+        },
+        {
+          "id": 20,
+          "kind": "flow.branch",
+          "at": [
+            4180.0,
+            0.0
+          ]
+        },
+        {
+          "id": 21,
+          "kind": "make.text",
+          "at": [
+            4400.0,
+            0.0
+          ],
+          "member": "ranks are {r}"
+        },
+        {
+          "id": 22,
+          "kind": "call",
+          "at": [
+            4620.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 23,
+          "kind": "member.get",
+          "at": [
+            4840.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "heard",
+            "args": [],
+            "gives": false,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 24,
+          "kind": "compare.not_equal",
+          "at": [
+            5060.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 3
+            }
+          ]
+        },
+        {
+          "id": 25,
+          "kind": "flow.branch",
+          "at": [
+            5280.0,
+            0.0
+          ]
+        },
+        {
+          "id": 26,
+          "kind": "make.text",
+          "at": [
+            5500.0,
+            0.0
+          ],
+          "member": "the score heard the runner {h} times in code, not 3"
+        },
+        {
+          "id": 27,
+          "kind": "call",
+          "at": [
+            5720.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 28,
+          "kind": "var.get",
+          "at": [
+            5940.0,
+            0.0
+          ],
+          "member": "changes"
+        },
+        {
+          "id": 29,
+          "kind": "compare.not_equal",
+          "at": [
+            6160.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 3
+            }
+          ]
+        },
+        {
+          "id": 30,
+          "kind": "flow.branch",
+          "at": [
+            6380.0,
+            0.0
+          ]
+        },
+        {
+          "id": 31,
+          "kind": "make.text",
+          "at": [
+            6600.0,
+            0.0
+          ],
+          "member": "the referee heard the score {n} times, not 3"
+        },
+        {
+          "id": 32,
+          "kind": "call",
+          "at": [
+            6820.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 33,
+          "kind": "call",
+          "at": [
+            7040.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "summary",
+            "args": [],
+            "gives": true,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 34,
+          "kind": "compare.not_equal",
+          "at": [
+            7260.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": "70 from 3"
+            }
+          ]
+        },
+        {
+          "id": 35,
+          "kind": "flow.branch",
+          "at": [
+            7480.0,
+            0.0
+          ]
+        },
+        {
+          "id": 36,
+          "kind": "make.text",
+          "at": [
+            7700.0,
+            0.0
+          ],
+          "member": "the summary is {s}"
+        },
+        {
+          "id": 37,
+          "kind": "call",
+          "at": [
+            7920.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 38,
+          "kind": "member.get",
+          "at": [
+            8140.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "any",
+            "name": "root",
+            "args": [],
+            "gives": false,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 39,
+          "kind": "compare.less",
+          "at": [
+            8360.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 8.3
+            }
+          ]
+        },
+        {
+          "id": 40,
+          "kind": "compare.greater",
+          "at": [
+            8580.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 8.4
+            }
+          ]
+        },
+        {
+          "id": 41,
+          "kind": "logic.or",
+          "at": [
+            8800.0,
+            0.0
+          ]
+        },
+        {
+          "id": 42,
+          "kind": "flow.branch",
+          "at": [
+            9020.0,
+            0.0
+          ]
+        },
+        {
+          "id": 43,
+          "kind": "make.text",
+          "at": [
+            9240.0,
+            0.0
+          ],
+          "member": "the root is {r}"
+        },
+        {
+          "id": 44,
+          "kind": "call",
+          "at": [
+            9460.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 45,
+          "kind": "literal",
+          "at": [
+            9680.0,
+            0.0
+          ],
+          "type": "[string]",
+          "values": [
+            {
+              "pin": "value",
+              "value": [
+                "Coin1",
+                "Coin2",
+                "Coin3"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 46,
+          "kind": "flow.for_each",
+          "at": [
+            9900.0,
+            0.0
+          ]
+        },
+        {
+          "id": 47,
+          "kind": "call",
+          "at": [
+            10120.0,
+            0.0
+          ],
+          "call": {
+            "on": "global",
+            "of": "app",
+            "name": "find",
+            "args": [
+              "name"
+            ],
+            "gives": true,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 48,
+          "kind": "compare.is_null",
+          "at": [
+            10340.0,
+            0.0
+          ]
+        },
+        {
+          "id": 49,
+          "kind": "flow.branch",
+          "at": [
+            10560.0,
+            0.0
+          ]
+        },
+        {
+          "id": 50,
+          "kind": "make.text",
+          "at": [
+            10780.0,
+            0.0
+          ],
+          "member": "{name} is still there"
+        },
+        {
+          "id": 51,
+          "kind": "call",
+          "at": [
+            11000.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 52,
+          "kind": "call",
+          "at": [
+            11220.0,
+            0.0
+          ],
+          "call": {
+            "on": "global",
+            "of": "app",
+            "name": "find",
+            "args": [
+              "name"
+            ],
+            "gives": true,
+            "action": true,
+            "waits": false
+          },
+          "values": [
+            {
+              "pin": "name",
+              "value": "Spinner"
+            }
+          ]
+        },
+        {
+          "id": 53,
+          "kind": "value.unwrap",
+          "at": [
+            11440.0,
+            0.0
+          ]
+        },
+        {
+          "id": 54,
+          "kind": "entity.component",
+          "at": [
+            11660.0,
+            0.0
+          ],
+          "type": "Transform2D"
+        },
+        {
+          "id": 55,
+          "kind": "member.get",
+          "at": [
+            11880.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "Transform2D",
+            "name": "rotation",
+            "args": [],
+            "gives": false,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 56,
+          "kind": "compare.less",
+          "at": [
+            12100.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 1.0
+            }
+          ]
+        },
+        {
+          "id": 57,
+          "kind": "flow.branch",
+          "at": [
+            12320.0,
+            0.0
+          ]
+        },
+        {
+          "id": 58,
+          "kind": "make.text",
+          "at": [
+            12540.0,
+            0.0
+          ],
+          "member": "the spinner turned only {r}"
+        },
+        {
+          "id": 59,
+          "kind": "call",
+          "at": [
+            12760.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "push",
+            "args": [
+              "value"
+            ],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        },
+        {
+          "id": 60,
+          "kind": "member.get",
+          "at": [
+            12980.0,
+            0.0
+          ],
+          "call": {
+            "on": "target",
+            "of": "list",
+            "name": "len",
+            "args": [],
+            "gives": false,
+            "action": false,
+            "waits": false
+          }
+        },
+        {
+          "id": 61,
+          "kind": "compare.equal",
+          "at": [
+            13200.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 0
+            }
+          ]
+        },
+        {
+          "id": 62,
+          "kind": "flow.branch",
+          "at": [
+            13420.0,
+            0.0
+          ]
+        },
+        {
+          "id": 63,
+          "kind": "flow.print",
+          "at": [
+            13640.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "value",
+              "value": "REFEREE PASS: graphs and Flux did all of it the other way round too"
+            }
+          ]
+        },
+        {
+          "id": 64,
+          "kind": "flow.for_each",
+          "at": [
+            13860.0,
+            0.0
+          ]
+        },
+        {
+          "id": 65,
+          "kind": "make.text",
+          "at": [
+            14080.0,
+            0.0
+          ],
+          "member": "REFEREE FAIL: {w}"
+        },
+        {
+          "id": 66,
+          "kind": "flow.print",
+          "at": [
+            14300.0,
+            0.0
+          ]
+        },
+        {
+          "id": 67,
+          "kind": "call",
+          "at": [
+            14520.0,
+            0.0
+          ],
+          "call": {
+            "on": "global",
+            "of": "app",
+            "name": "quit",
+            "args": [],
+            "gives": false,
+            "action": true,
+            "waits": false
+          }
+        }
+      ],
+      "links": [
+        {
+          "from": {
+            "node": 2,
+            "pin": "result"
+          },
+          "to": {
+            "node": 3,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 1,
+            "pin": "then"
+          },
+          "to": {
+            "node": 2,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 2,
+            "pin": "then"
+          },
+          "to": {
+            "node": 4,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "out"
+          },
+          "to": {
+            "node": 4,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 4,
+            "pin": "then"
+          },
+          "to": {
+            "node": 7,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 4,
+            "pin": "result"
+          },
+          "to": {
+            "node": 5,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 5,
+            "pin": "out"
+          },
+          "to": {
+            "node": 7,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 6,
+            "pin": "out"
+          },
+          "to": {
+            "node": 7,
+            "pin": "target_fn"
+          }
+        },
+        {
+          "from": {
+            "node": 7,
+            "pin": "then"
+          },
+          "to": {
+            "node": 8,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 8,
+            "pin": "then"
+          },
+          "to": {
+            "node": 10,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "out"
+          },
+          "to": {
+            "node": 10,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 10,
+            "pin": "then"
+          },
+          "to": {
+            "node": 11,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 10,
+            "pin": "result"
+          },
+          "to": {
+            "node": 12,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 12,
+            "pin": "out"
+          },
+          "to": {
+            "node": 13,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_0"
+          },
+          "to": {
+            "node": 14,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 13,
+            "pin": "out"
+          },
+          "to": {
+            "node": 14,
+            "pin": "condition"
+          }
+        },
+        {
+          "from": {
+            "node": 12,
+            "pin": "out"
+          },
+          "to": {
+            "node": 15,
+            "pin": "t"
+          }
+        },
+        {
+          "from": {
+            "node": 14,
+            "pin": "true"
+          },
+          "to": {
+            "node": 16,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 16,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 15,
+            "pin": "out"
+          },
+          "to": {
+            "node": 16,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 10,
+            "pin": "result"
+          },
+          "to": {
+            "node": 17,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 17,
+            "pin": "out"
+          },
+          "to": {
+            "node": 19,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 18,
+            "pin": "out"
+          },
+          "to": {
+            "node": 19,
+            "pin": "b"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_1"
+          },
+          "to": {
+            "node": 20,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 19,
+            "pin": "out"
+          },
+          "to": {
+            "node": 20,
+            "pin": "condition"
+          }
+        },
+        {
+          "from": {
+            "node": 17,
+            "pin": "out"
+          },
+          "to": {
+            "node": 21,
+            "pin": "r"
+          }
+        },
+        {
+          "from": {
+            "node": 20,
+            "pin": "true"
+          },
+          "to": {
+            "node": 22,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 22,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 21,
+            "pin": "out"
+          },
+          "to": {
+            "node": 22,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 10,
+            "pin": "result"
+          },
+          "to": {
+            "node": 23,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 23,
+            "pin": "out"
+          },
+          "to": {
+            "node": 24,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_2"
+          },
+          "to": {
+            "node": 25,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 24,
+            "pin": "out"
+          },
+          "to": {
+            "node": 25,
+            "pin": "condition"
+          }
+        },
+        {
+          "from": {
+            "node": 23,
+            "pin": "out"
+          },
+          "to": {
+            "node": 26,
+            "pin": "h"
+          }
+        },
+        {
+          "from": {
+            "node": 25,
+            "pin": "true"
+          },
+          "to": {
+            "node": 27,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 27,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 26,
+            "pin": "out"
+          },
+          "to": {
+            "node": 27,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 28,
+            "pin": "out"
+          },
+          "to": {
+            "node": 29,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_3"
+          },
+          "to": {
+            "node": 30,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 29,
+            "pin": "out"
+          },
+          "to": {
+            "node": 30,
+            "pin": "condition"
+          }
+        },
+        {
+          "from": {
+            "node": 28,
+            "pin": "out"
+          },
+          "to": {
+            "node": 31,
+            "pin": "n"
+          }
+        },
+        {
+          "from": {
+            "node": 30,
+            "pin": "true"
+          },
+          "to": {
+            "node": 32,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 32,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 31,
+            "pin": "out"
+          },
+          "to": {
+            "node": 32,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 10,
+            "pin": "result"
+          },
+          "to": {
+            "node": 33,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 33,
+            "pin": "result"
+          },
+          "to": {
+            "node": 34,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_4"
+          },
+          "to": {
+            "node": 35,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 34,
+            "pin": "out"
+          },
+          "to": {
+            "node": 35,
+            "pin": "condition"
+          }
+        },
+        {
+          "from": {
+            "node": 33,
+            "pin": "out"
+          },
+          "to": {
+            "node": 36,
+            "pin": "s"
+          }
+        },
+        {
+          "from": {
+            "node": 35,
+            "pin": "true"
+          },
+          "to": {
+            "node": 37,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 37,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 36,
+            "pin": "out"
+          },
+          "to": {
+            "node": 37,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 10,
+            "pin": "result"
+          },
+          "to": {
+            "node": 38,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 38,
+            "pin": "out"
+          },
+          "to": {
+            "node": 39,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 38,
+            "pin": "out"
+          },
+          "to": {
+            "node": 40,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 39,
+            "pin": "out"
+          },
+          "to": {
+            "node": 41,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 40,
+            "pin": "out"
+          },
+          "to": {
+            "node": 41,
+            "pin": "b"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_5"
+          },
+          "to": {
+            "node": 42,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 41,
+            "pin": "out"
+          },
+          "to": {
+            "node": 42,
+            "pin": "condition"
+          }
+        },
+        {
+          "from": {
+            "node": 38,
+            "pin": "out"
+          },
+          "to": {
+            "node": 43,
+            "pin": "r"
+          }
+        },
+        {
+          "from": {
+            "node": 42,
+            "pin": "true"
+          },
+          "to": {
+            "node": 44,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 44,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 43,
+            "pin": "out"
+          },
+          "to": {
+            "node": 44,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_6"
+          },
+          "to": {
+            "node": 46,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 45,
+            "pin": "out"
+          },
+          "to": {
+            "node": 46,
+            "pin": "list"
+          }
+        },
+        {
+          "from": {
+            "node": 46,
+            "pin": "body"
+          },
+          "to": {
+            "node": 47,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 46,
+            "pin": "item"
+          },
+          "to": {
+            "node": 47,
+            "pin": "name"
+          }
+        },
+        {
+          "from": {
+            "node": 47,
+            "pin": "result"
+          },
+          "to": {
+            "node": 48,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 47,
+            "pin": "then"
+          },
+          "to": {
+            "node": 49,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 48,
+            "pin": "out"
+          },
+          "to": {
+            "node": 49,
+            "pin": "condition"
+          }
+        },
+        {
+          "from": {
+            "node": 46,
+            "pin": "item"
+          },
+          "to": {
+            "node": 50,
+            "pin": "name"
+          }
+        },
+        {
+          "from": {
+            "node": 49,
+            "pin": "false"
+          },
+          "to": {
+            "node": 51,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 51,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 50,
+            "pin": "out"
+          },
+          "to": {
+            "node": 51,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_7"
+          },
+          "to": {
+            "node": 52,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 52,
+            "pin": "result"
+          },
+          "to": {
+            "node": 53,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 53,
+            "pin": "out"
+          },
+          "to": {
+            "node": 54,
+            "pin": "entity"
+          }
+        },
+        {
+          "from": {
+            "node": 54,
+            "pin": "out"
+          },
+          "to": {
+            "node": 55,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 55,
+            "pin": "out"
+          },
+          "to": {
+            "node": 56,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 52,
+            "pin": "then"
+          },
+          "to": {
+            "node": 57,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 56,
+            "pin": "out"
+          },
+          "to": {
+            "node": 57,
+            "pin": "condition"
+          }
+        },
+        {
+          "from": {
+            "node": 55,
+            "pin": "out"
+          },
+          "to": {
+            "node": 58,
+            "pin": "r"
+          }
+        },
+        {
+          "from": {
+            "node": 57,
+            "pin": "true"
+          },
+          "to": {
+            "node": 59,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 59,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 58,
+            "pin": "out"
+          },
+          "to": {
+            "node": 59,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 60,
+            "pin": "target"
+          }
+        },
+        {
+          "from": {
+            "node": 60,
+            "pin": "out"
+          },
+          "to": {
+            "node": 61,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_8"
+          },
+          "to": {
+            "node": 62,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 61,
+            "pin": "out"
+          },
+          "to": {
+            "node": 62,
+            "pin": "condition"
+          }
+        },
+        {
+          "from": {
+            "node": 62,
+            "pin": "true"
+          },
+          "to": {
+            "node": 63,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 62,
+            "pin": "false"
+          },
+          "to": {
+            "node": 64,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 9,
+            "pin": "out"
+          },
+          "to": {
+            "node": 64,
+            "pin": "list"
+          }
+        },
+        {
+          "from": {
+            "node": 64,
+            "pin": "item"
+          },
+          "to": {
+            "node": 65,
+            "pin": "w"
+          }
+        },
+        {
+          "from": {
+            "node": 64,
+            "pin": "body"
+          },
+          "to": {
+            "node": 66,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 65,
+            "pin": "out"
+          },
+          "to": {
+            "node": 66,
+            "pin": "value"
+          }
+        },
+        {
+          "from": {
+            "node": 11,
+            "pin": "then_9"
+          },
+          "to": {
+            "node": 67,
+            "pin": "run"
+          }
+        }
+      ],
+      "next_id": 68
+    },
+    {
+      "name": "on_changed",
+      "kind": "function",
+      "params": [
+        {
+          "name": "total",
+          "type": "int"
+        }
+      ],
+      "result": "",
+      "locals": [],
+      "nodes": [
+        {
+          "id": 1,
+          "kind": "entry",
+          "at": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": 2,
+          "kind": "var.get",
+          "at": [
+            220.0,
+            0.0
+          ],
+          "member": "changes"
+        },
+        {
+          "id": 3,
+          "kind": "math.add",
+          "at": [
+            440.0,
+            0.0
+          ],
+          "values": [
+            {
+              "pin": "b",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "kind": "var.set",
+          "at": [
+            660.0,
+            0.0
+          ],
+          "member": "changes"
+        }
+      ],
+      "links": [
+        {
+          "from": {
+            "node": 2,
+            "pin": "out"
+          },
+          "to": {
+            "node": 3,
+            "pin": "a"
+          }
+        },
+        {
+          "from": {
+            "node": 1,
+            "pin": "then"
+          },
+          "to": {
+            "node": 4,
+            "pin": "run"
+          }
+        },
+        {
+          "from": {
+            "node": 3,
+            "pin": "out"
+          },
+          "to": {
+            "node": 4,
+            "pin": "value"
+          }
+        }
+      ],
+      "next_id": 5
+    }
+  ]
+}

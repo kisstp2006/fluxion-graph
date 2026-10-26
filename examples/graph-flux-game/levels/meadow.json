@@ -1,0 +1,15 @@
+{
+  "fluxion_scene": 3,
+  "entities": [
+    { "uuid": "00000000-0000-4000-8000-0000000000a1", "name": "Player", "Transform2D": { "x": 0.0, "y": 100.0 }, "Script": { "source": "res://scripts/runner.flux" } },
+    { "uuid": "00000000-0000-4000-8000-0000000000c1", "name": "Coin1", "Transform2D": { "x": 50.0, "y": 100.0 }, "Script": { "source": "res://scripts/coin.fxgraph" }, "exports": { "value": 5 } },
+    { "uuid": "00000000-0000-4000-8000-0000000000c2", "name": "Coin2", "Transform2D": { "x": 100.0, "y": 100.0 }, "Script": { "source": "res://scripts/coin.fxgraph" }, "exports": { "value": 10 } },
+    { "uuid": "00000000-0000-4000-8000-0000000000c3", "name": "Coin3", "Transform2D": { "x": 150.0, "y": 100.0 }, "Script": { "source": "res://scripts/coin.fxgraph" }, "exports": { "value": 20 } },
+    { "uuid": "00000000-0000-4000-8000-0000000000c9", "name": "Spinner", "Transform2D": { "x": 400.0, "y": 200.0 }, "Script": { "source": "res://scripts/coin.fxgraph" }, "exports": { "spin": 4.0 } },
+    { "uuid": "00000000-0000-4000-8000-0000000000b1", "name": "Score", "Script": { "source": "res://scripts/score.fxgraph" } },
+    { "uuid": "00000000-0000-4000-8000-0000000000d1", "name": "Referee", "Script": { "source": "res://scripts/referee.flux" } }
+  ],
+  "connections": [
+    { "from": "00000000-0000-4000-8000-0000000000a1", "signal": "collected", "to": "00000000-0000-4000-8000-0000000000b1", "method": "on_collected" }
+  ]
+}
