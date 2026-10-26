@@ -129,6 +129,7 @@ const expressions = [_]Template{
     .{ .kind = "value.unwrap", .text = "{value}.?" },
     .{ .kind = "value.catch", .text = "({value} catch {fallback})" },
     .{ .kind = "compare.is_null", .text = "({value} == null)" },
+    .{ .kind = "compare.in", .text = "({a} in {b})" },
     .{ .kind = "self", .text = "self" },
     .{ .kind = "self.entity", .text = "self.entity" },
 };
@@ -523,6 +524,7 @@ const Writer = struct {
         if (eql(kind, "var.get")) return std.fmt.allocPrint(w.arena, "self.{s}", .{try w.named(id, n.member)});
         if (eql(kind, "local.get")) return w.named(id, n.member);
         if (eql(kind, "function.ref")) return std.fmt.allocPrint(w.arena, "self.{s}", .{try w.named(id, n.member)});
+        if (eql(kind, "entity.component")) return std.fmt.allocPrint(w.arena, "{s}.get({s})", .{ try w.input(n, "entity"), try w.named(id, n.type) });
         if (eql(kind, "enum.member")) return std.fmt.allocPrint(w.arena, "{s}.{s}", .{ try w.typeName(id, n.type), try w.named(id, n.member) });
         if (eql(kind, "value.is")) return std.fmt.allocPrint(w.arena, "({s} is {s})", .{ try w.input(n, "value"), try w.typeName(id, n.type) });
         if (eql(kind, "make.struct")) {

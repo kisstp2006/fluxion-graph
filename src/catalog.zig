@@ -108,6 +108,15 @@ pub fn build(arena: Allocator, found: service.Catalog, file: ?*const model.File,
         if (t.kind != .host) continue;
         if (contains(options.components, t.name)) {
             try b.members(t, .{ .on = .component, .of = t.name, .category = t.name });
+            // The component of another entity, whose members are then on it.
+            try b.add(.{
+                .key = try std.fmt.allocPrint(arena, "entity.component:{s}", .{t.name}),
+                .title = try std.fmt.allocPrint(arena, "{s} of", .{t.name}),
+                .category = t.name,
+                .inputs = try b.pins(&.{.{ .name = "entity", .type = options.entity }}),
+                .outputs = try b.pins(&.{.{ .name = "out", .type = t.name }}),
+                .made = .{ .kind = "entity.component", .type = t.name },
+            });
         } else if (std.mem.eql(u8, t.name, options.entity)) {
             try b.members(t, .{ .on = .entity, .of = t.name, .category = "Entity" });
         }
@@ -128,12 +137,15 @@ pub fn keyOf(arena: Allocator, node: *const model.Node) Allocator.Error![]const 
     if (std.mem.eql(u8, kind, "call") or std.mem.eql(u8, kind, "member.get") or std.mem.eql(u8, kind, "member.set")) {
         const call = node.call orelse return kind;
         const head = if (std.mem.eql(u8, kind, "call")) "call" else if (std.mem.eql(u8, kind, "member.get")) "get" else "set";
+        // On a value of any type: one entry, the name the node's own.
+        if (call.on == .target and std.mem.eql(u8, call.of, "any")) return std.fmt.allocPrint(arena, "{s}:target:any", .{head});
         return callKey(arena, head, call.on, call.of, call.name);
     }
     if (std.mem.eql(u8, kind, "var.get") or std.mem.eql(u8, kind, "var.set") or std.mem.eql(u8, kind, "signal.emit") or
         std.mem.eql(u8, kind, "local.get") or std.mem.eql(u8, kind, "local.set") or std.mem.eql(u8, kind, "function.ref"))
         return std.fmt.allocPrint(arena, "{s}:{s}", .{ kind, node.member });
     if (std.mem.eql(u8, kind, "enum.member")) return std.fmt.allocPrint(arena, "enum.member:{s}.{s}", .{ node.type, node.member });
+    if (std.mem.eql(u8, kind, "entity.component")) return std.fmt.allocPrint(arena, "entity.component:{s}", .{node.type});
     if (std.mem.eql(u8, kind, "make.struct")) return std.fmt.allocPrint(arena, "make:{s}", .{if (node.call) |c| c.of else ""});
     if (std.mem.eql(u8, kind, "literal")) return std.fmt.allocPrint(arena, "literal:{s}", .{node.type});
     return kind;
@@ -235,6 +247,7 @@ const Builder = struct {
         try b.add(.{ .key = "logic.orelse", .title = "Or else", .category = "Values", .doc = "The value, or the other where it is null.", .inputs = try b.pins(&.{ any_a, any_b }), .outputs = try b.pins(&.{out}), .made = .{ .kind = "logic.orelse" } });
         try b.add(.{ .key = "value.unwrap", .title = "Not null", .category = "Values", .doc = "The value, stopping the script where it is null.", .inputs = try b.pins(&.{any_value}), .outputs = try b.pins(&.{out}), .made = .{ .kind = "value.unwrap" } });
         try b.add(.{ .key = "value.catch", .title = "Catch", .category = "Values", .doc = "The value, or the fallback where it is an error.", .inputs = try b.pins(&.{ any_value, .{ .name = "fallback" } }), .outputs = try b.pins(&.{out}), .made = .{ .kind = "value.catch" } });
+        try b.add(.{ .key = "compare.in", .title = "Is in", .category = "Compare", .doc = "Whether a list holds it, a map has the key, or the text contains it.", .inputs = try b.pins(&.{ any_a, any_b }), .outputs = try b.pins(&.{out_bool}), .made = .{ .kind = "compare.in" } });
         try b.add(.{ .key = "compare.is_null", .title = "Is null", .category = "Compare", .inputs = try b.pins(&.{any_value}), .outputs = try b.pins(&.{out_bool}), .made = .{ .kind = "compare.is_null" } });
         try b.add(.{ .key = "value.is", .title = "Is a", .category = "Compare", .doc = "Whether the value is of the node's type.", .inputs = try b.pins(&.{any_value}), .outputs = try b.pins(&.{out_bool}), .made = .{ .kind = "value.is" } });
         try b.add(.{ .key = "make.text", .title = "Text", .category = "Make", .doc = "Words with values in them: each {name} a pin.", .outputs = try b.pins(&.{.{ .name = "out", .type = "string" }}), .made = .{ .kind = "make.text" } });
@@ -243,6 +256,11 @@ const Builder = struct {
         try b.add(.{ .key = "flow.switch", .title = "Switch", .category = "Flow", .doc = "A run for each case the node says, and one for the rest.", .inputs = try b.pins(&.{ run_in, any_value }), .outputs = try b.pins(&.{ .{ .name = "else", .run = true }, run_out }), .made = .{ .kind = "flow.switch", .call = .{ .name = "switch" } } });
         try b.add(.{ .key = "flow.break", .title = "Break", .category = "Flow", .inputs = try b.pins(&.{run_in}), .made = .{ .kind = "flow.break" } });
         try b.add(.{ .key = "flow.continue", .title = "Continue", .category = "Flow", .inputs = try b.pins(&.{run_in}), .made = .{ .kind = "flow.continue" } });
+        // On a value whose type is known only as it runs - another entity's
+        // script, what a map holds: by the name the node says.
+        try b.add(.{ .key = "call:target:any", .title = "Call a method", .category = "Values", .doc = "Calls the method the node names on the value, with the arguments the node names.", .inputs = try b.pins(&.{ run_in, .{ .name = "target" } }), .outputs = try b.pins(&.{ run_out, .{ .name = compile.result_pin } }), .made = .{ .kind = "call", .call = .{ .on = .target, .of = "any", .name = "", .gives = true } } });
+        try b.add(.{ .key = "get:target:any", .title = "Get a field", .category = "Values", .doc = "The field the node names, of the value.", .inputs = try b.pins(&.{.{ .name = "target" }}), .outputs = try b.pins(&.{.{ .name = "out" }}), .made = .{ .kind = "member.get", .call = .{ .on = .target, .of = "any", .name = "", .action = false } } });
+        try b.add(.{ .key = "set:target:any", .title = "Set a field", .category = "Values", .doc = "Sets the field the node names, of the value.", .inputs = try b.pins(&.{ run_in, .{ .name = "target" }, .{ .name = "value" } }), .outputs = try b.pins(&.{run_out}), .made = .{ .kind = "member.set", .call = .{ .on = .target, .of = "any", .name = "", .action = true } } });
         try b.add(.{ .key = "flow.branch", .title = "Branch", .category = "Flow", .inputs = try b.pins(&.{ run_in, .{ .name = "condition", .type = "bool" } }), .outputs = try b.pins(&.{ .{ .name = "true", .run = true }, .{ .name = "false", .run = true } }), .made = .{ .kind = "flow.branch" } });
         try b.add(.{ .key = "flow.sequence", .title = "Sequence", .category = "Flow", .inputs = try b.pins(&.{run_in}), .outputs = try b.pins(&.{ .{ .name = "then_0", .run = true }, .{ .name = "then_1", .run = true } }), .made = .{ .kind = "flow.sequence" } });
         try b.add(.{ .key = "flow.for_each", .title = "For each", .category = "Flow", .inputs = try b.pins(&.{ run_in, .{ .name = "list" } }), .outputs = try b.pins(&.{ .{ .name = "body", .run = true }, .{ .name = "item" }, .{ .name = "index", .type = "int" }, run_out }), .made = .{ .kind = "flow.for_each" } });
@@ -540,6 +558,9 @@ fn pinOf(arena: Allocator, f: *const model.Function, catalog: *const Catalog, n:
     }
     if (side == .output and std.mem.eql(u8, n.kind, "flow.sequence") and std.mem.startsWith(u8, name, "then_")) return .{ .name = name, .run = true };
     if (side == .output and std.mem.eql(u8, n.kind, "flow.switch") and std.mem.startsWith(u8, name, "case_")) return .{ .name = name, .run = true };
+    if (side == .input and std.mem.eql(u8, n.kind, "call")) if (n.call) |call| if (call.on == .target and std.mem.eql(u8, call.of, "any")) {
+        for (call.args.items) |arg| if (std.mem.eql(u8, arg, name)) return .{ .name = name };
+    };
     if (side == .input and std.mem.eql(u8, n.kind, "make.text")) {
         for (try compile.textPins(arena, n.member)) |pin| if (std.mem.eql(u8, pin, name)) return .{ .name = name };
         return null;

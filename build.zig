@@ -38,6 +38,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // The Flux a graph is made into, for a terminal.
+    const to_flux = b.addExecutable(.{ .name = "fluxion-graph-flux", .root_module = b.createModule(.{
+        .root_source_file = b.path("tools/to_flux.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "fluxion_graph", .module = mod }},
+    }) });
+    b.installArtifact(to_flux);
+
     const test_step = b.step("test", "Run the tests");
     const tests = b.addTest(.{ .name = "fluxion-graph-tests", .root_module = mod });
     test_step.dependOn(&b.addRunArtifact(tests).step);

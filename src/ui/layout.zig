@@ -65,6 +65,14 @@ pub fn shapeOf(arena: Allocator, f: *const model.Function, nodes: *const catalog
             @memcpy(outputs[call.args.items.len..], e.outputs);
             shape.outputs = outputs;
         };
+        // A call by name on any value: the arguments the node names.
+        if (std.mem.eql(u8, n.kind, "call")) if (n.call) |call| if (call.on == .target and std.mem.eql(u8, call.of, "any")) {
+            const inputs = try arena.alloc(catalog.Pin, e.inputs.len + call.args.items.len);
+            @memcpy(inputs[0..e.inputs.len], e.inputs);
+            for (call.args.items, inputs[e.inputs.len..]) |arg, *pin| pin.* = .{ .name = arg };
+            shape.inputs = inputs;
+            shape.title = try std.fmt.allocPrint(arena, "Call {s}", .{call.name});
+        };
         if (std.mem.eql(u8, n.kind, "make.text")) {
             const names = try graph.compile.textPins(arena, n.member);
             const inputs = try arena.alloc(catalog.Pin, names.len);
