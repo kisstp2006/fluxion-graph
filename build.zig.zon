@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: BSD-2-Clause
+
+.{
+    .name = .fluxion_graph,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.17.0",
+    .fingerprint = 0xf6eca3e69bb49f15,
+    // The commit fluxion-script and the engine pin, so a program gets one
+    // copy of it.
+    .dependencies = .{
+        .fluxion_json = .{
+            .url = "git+https://github.com/kisstp2006/fluxion-json#536986073e603ed950daec1c1039b18a3d2fc997",
+            .hash = "fluxion_json-0.2.3-sFlLPfelBQCe7T4IG1Vwa5dkRu-9H9UhoNdxd01SPKjQ",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "README.md",
+        "LICENSE",
+    },
+}

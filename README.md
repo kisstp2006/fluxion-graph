@@ -1,0 +1,74 @@
+# Fluxion Graph
+
+Scripts drawn as graphs of nodes, for the [Fluxion engine](https://github.com/kisstp2006/fluxion-engine).
+
+A graph is not a language of its own with a machine of its own. It compiles to [Flux](https://github.com/kisstp2006/fluxion-script), and the Flux VM runs it as it runs Flux written by hand. O3DE's Script Canvas does the same with Lua. A graph and a Flux file therefore:
+
+- use the same engine and the same `app`;
+- can import each other;
+- reload while the game runs;
+- show their `@export`s in the editor's Inspector;
+- ship compiled.
+
+## A graph
+
+A `.fxgraph` file is one struct of Flux's, drawn:
+
+- **variables**, the struct's fields (`@export` ones shown in the Inspector);
+- **signals**, the struct's own;
+- **functions**, each the graph of nodes that is its body. An *event* is one the engine calls (`update`, `input`) or a signal's handler; any other function is one that nodes and scripts call.
+
+A node is either:
+
+- an **action**, run in order along the links of its run pins;
+- an **expression**, worked out when an action wants its value.
+
+As the struct a `.flux` file is, a graph goes onto an entity as its `Script`.
+
+The file is JSON. A node's `kind` is the name the catalog gives it (`flow.branch`, `call:Transform2D.rotate`), and a link joins two pins by their names. A graph therefore keeps every node a newer catalog or a missing plugin has, and a catalog that reorders a kind's pins breaks no link.
+
+```json
+{
+  "fluxion_graph": 1,
+  "name": "Door",
+  "variables": [{ "name": "speed", "type": "float", "default": 2.0, "exported": true }],
+  "functions": [
+    {
+      "name": "update",
+      "kind": "event",
+      "params": [{ "name": "dt", "type": "float" }],
+      "nodes": [
+        { "id": 1, "kind": "entry" },
+        { "id": 2, "kind": "call:Transform2D.rotate", "at": [240.0, 0.0] }
+      ],
+      "links": [{ "from": { "node": 1, "pin": "then" }, "to": { "node": 2, "pin": "run" } }],
+      "next_id": 3
+    }
+  ]
+}
+```
+
+## Pieces
+
+| | What it is |
+| --- | --- |
+| `model` | What a graph's file holds: `File`, `Variable`, `Signal`, `Function`, `Node`, `Link`. |
+| `Graph` | A graph read, changed and written: its file and the memory it lives in, with the edits an editor makes (functions, variables, signals, nodes, links, a pin's value). |
+
+## To come
+
+1. **The compiler.** A graph made into Flux text, with a map from each line back to the node it came from, so that errors and panics name the node.
+2. **The catalog.** The node kinds there are. A node for each of the engine's types, methods, signals and hooks, and for each function of the project's Flux, is not written by hand: it is read from the same place Flux's completions come from. Anything a plugin gives Flux is therefore a node too.
+3. **The editor widget** (`fluxion_graph_ui`), built on [fluxion-ui](https://github.com/kisstp2006/fluxion-ui) as [fluxion-code](https://github.com/kisstp2006/fluxion-code) is.
+
+## Building
+
+Zig 0.17.0.
+
+```
+zig build test
+```
+
+## License
+
+BSD-2-Clause.
