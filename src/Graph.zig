@@ -88,6 +88,10 @@ pub fn allocator(self: *const Graph) Allocator {
 /// Whether it hangs together: see `CheckError`.
 pub fn check(self: *const Graph) CheckError!void {
     const file = &self.file;
+    for (file.imports.items, 0..) |m, i| {
+        for (file.imports.items[i + 1 ..]) |other| if (std.mem.eql(u8, other.name, m.name)) return error.NameTaken;
+        if (self.taken(m.name)) return error.NameTaken;
+    }
     for (file.variables.items, 0..) |v, i| try self.unique(v.name, .{ .variable = i });
     for (file.signals.items, 0..) |s, i| try self.unique(s.name, .{ .signal = i });
     for (file.functions.items, 0..) |*f, i| {
@@ -144,6 +148,14 @@ pub fn addFunction(self: *Graph, name: []const u8, kind: Function.Kind) EditErro
     made.* = .{ .name = try gpa.dupe(u8, name), .kind = kind };
     _ = try self.addNode(made, model.entry_kind, .{ 0, 0 });
     return made;
+}
+
+/// A file the graph uses, by the name its calls give it.
+pub fn addImport(self: *Graph, name: []const u8, path: []const u8) EditError!void {
+    if (self.taken(name)) return error.NameTaken;
+    for (self.file.imports.items) |m| if (std.mem.eql(u8, m.name, name)) return error.NameTaken;
+    const gpa = self.allocator();
+    try self.file.imports.append(gpa, .{ .name = try gpa.dupe(u8, name), .path = try gpa.dupe(u8, path) });
 }
 
 pub fn removeFunction(self: *Graph, name: []const u8) bool {

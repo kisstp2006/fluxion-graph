@@ -32,9 +32,18 @@ pub const File = struct {
     /// a Flux file's - `BigDoor` in `big_door.fxgraph`.
     name: []const u8 = "",
     doc: []const u8 = "",
+    /// The Flux files and graphs it uses, each by the name its calls give it.
+    imports: std.ArrayList(Import) = .empty,
     variables: std.ArrayList(Variable) = .empty,
     signals: std.ArrayList(Signal) = .empty,
     functions: std.ArrayList(Function) = .empty,
+};
+
+/// A file the graph uses: `const tools = @import("tools.flux");`.
+pub const Import = struct {
+    name: []const u8,
+    /// As Flux's `@import` takes it: beside the graph, or `res://...`.
+    path: []const u8,
 };
 
 /// A field of the struct.

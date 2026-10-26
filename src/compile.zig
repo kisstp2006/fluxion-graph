@@ -187,6 +187,7 @@ const Writer = struct {
         const file = w.file;
         const name = if (file.name.len > 0) try w.named(0, file.name) else try structName(w.arena, options.path);
         try w.line(0, "// Made from {s} by fluxion-graph: the graph is what to change.", .{if (options.path.len > 0) options.path else "a graph"});
+        for (file.imports.items) |m| try w.line(0, "const {s} = @import({s});", .{ try w.named(0, m.name), try quote(w.arena, m.path) });
         try w.doc(0, file.doc);
         try w.line(0, "struct {s} {{", .{name});
         w.depth += 1;
@@ -711,6 +712,8 @@ test "loops give their items inside, an action's value is held, and literals are
     defer graph.deinit();
     graph.file.name = "Counter";
     const a = graph.allocator();
+    try graph.addImport("tools", "tools.flux");
+    try testing.expectError(error.NameTaken, graph.addImport("tools", "other.flux"));
     _ = try graph.addVariable(.{ .name = "tint", .type = "color", .default = .{ .string = "#FF8000" } });
     var at: json.Document = try .init(testing.allocator);
     defer at.deinit();
@@ -743,6 +746,7 @@ test "loops give their items inside, an action's value is held, and literals are
     try testing.expectEqual(@as(usize, 0), made.problems.len);
     try testing.expectEqualStrings(
         \\// Made from a graph by fluxion-graph: the graph is what to change.
+        \\const tools = @import("tools.flux");
         \\struct Counter {
         \\    var tint: color = color("#FF8000");
         \\    var at: vec2 = vec2(1.0, 2.5);
