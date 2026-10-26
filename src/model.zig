@@ -105,10 +105,20 @@ pub const entry_kind = "entry";
 pub const Node = struct {
     /// Its own in its function, never given again.
     id: u32,
-    /// What it does, as the catalog names it.
+    /// What it does: one of the kinds `compile` knows - `flow.branch`,
+    /// `math.add` - or `call`.
     kind: []const u8,
     /// Where it is on the canvas.
     at: [2]f32 = .{ 0, 0 },
+    /// What it names: the variable a `var.get` reads, the signal a
+    /// `signal.emit` emits.
+    member: []const u8 = "",
+    /// The type of the value a `literal` gives, as Flux writes it.
+    type: []const u8 = "",
+    /// What a `call` calls: written into the node when it is made, so a
+    /// graph compiles with nothing but itself - a game's runtime has no
+    /// catalog.
+    call: ?Call = null,
     /// What its inputs no link feeds are given, by pin.
     values: std.ArrayList(PinValue) = .empty,
 
@@ -117,6 +127,39 @@ pub const Node = struct {
         for (self.values.items) |v| if (std.mem.eql(u8, v.pin, pin)) return v.value;
         return null;
     }
+};
+
+/// A call of a function or a method: what it is called on, and how.
+pub const Call = struct {
+    on: On = .none,
+    /// The type `on` names: a component's - `Transform2D` - or a global's -
+    /// `app`, `math`.
+    of: []const u8 = "",
+    name: []const u8,
+    /// Its arguments' input pins, in the order it takes them.
+    args: std.ArrayList([]const u8) = .empty,
+    /// It gives a value: the output `result`.
+    gives: bool = false,
+    /// It runs in order, between `run` and `then`: one that changes
+    /// something. One that does not is worked out where its value is used.
+    action: bool = true,
+    /// It is waited for: `await`.
+    waits: bool = false,
+
+    pub const On = enum {
+        /// A function called by its name: `print`, `wait`.
+        none,
+        /// The struct the graph is: `self.name()`.
+        self,
+        /// The struct's entity: `self.entity.name()`.
+        entity,
+        /// A component of the entity: `self.entity.get(Transform2D).name()`.
+        component,
+        /// A global, or a module: `app.name()`, `math.name()`.
+        global,
+        /// What the input `target` is given.
+        target,
+    };
 };
 
 pub const PinValue = struct {
