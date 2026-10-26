@@ -91,9 +91,27 @@ No node of the engine's is written here. `catalog.build` reads them from `flux.s
 
 A method is an action: it runs in order. A built-in that changes nothing (`clamp`, `vec2`), and a Flux function marked `@pure`, is an expression. A Flux function's `@node("Weather", "cloud")` puts it in the chooser's group `Weather`, with the icon `cloud`.
 
-## To come
+## The editor widget
 
-1. **The editor widget** (`fluxion_graph_ui`), built on [fluxion-ui](https://github.com/kisstp2006/fluxion-ui) as [fluxion-code](https://github.com/kisstp2006/fluxion-code) is.
+`fluxion_graph_ui` draws a function's graph with [fluxion-ui](https://github.com/kisstp2006/fluxion-ui), as [fluxion-code](https://github.com/kisstp2006/fluxion-code) draws code. It has these parts:
+
+| | What it is |
+| --- | --- |
+| `View` | The graph drawn: a canvas with a grid, each node a box with a coloured header, its inputs down the left and outputs down the right, each pin a dot in its type's colour (the run white), and links hanging from output to input. `pointer` and `key` do what the hand does to it. |
+| `Canvas` | What a view keeps between frames: where it is moved to and how near, which nodes are picked, and what the pointer is doing. |
+| `Theme` | Its colours, a pin's by its type and a header's by what the node does. |
+| `layout` | Where the nodes and pins are: sizes, pin points, what is under a point, a link's curve. Arithmetic only, so the view draws and the pointer finds the same places. |
+
+What the hand does to it:
+
+- the wheel zooms about the pointer, and the middle button (or Alt and the left) moves the canvas;
+- a press picks a node (with Shift, adds or takes one out), and a drag moves what is picked;
+- a drag from a pin draws a link, which is made if it is let go on a pin that fits;
+- a drag from an input a link feeds takes that link off;
+- a drag on nothing picks what is in its box;
+- Delete, Ctrl+A and F take out, pick all and show all.
+
+What a pin is given, and which node to make (`Outcome.choose`: let go on nothing, a second press, the right button), are the program's to ask. Each `Outcome` that says `changed` is one step to undo.
 
 ## Building
 

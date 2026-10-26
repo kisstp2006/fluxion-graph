@@ -23,6 +23,24 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // The editor's widget: a graph drawn with fluxion-ui. Built over a
+    // program's own fluxion-ui in the same way.
+    const ui = b.dependency("fluxion_ui", .{ .target = target, .optimize = optimize });
+    const ui_mod = b.addModule("fluxion_graph_ui", .{
+        .root_source_file = b.path("src/ui/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "fluxion_graph", .module = mod },
+            .{ .name = "fluxion_ui", .module = ui.module("fluxion_ui") },
+            .{ .name = "fluxion_json", .module = json.module("fluxion_json") },
+            .{ .name = "fluxion_script", .module = script.module("fluxion_script") },
+        },
+    });
+
+    const test_step = b.step("test", "Run the tests");
     const tests = b.addTest(.{ .name = "fluxion-graph-tests", .root_module = mod });
-    b.step("test", "Run the tests").dependOn(&b.addRunArtifact(tests).step);
+    test_step.dependOn(&b.addRunArtifact(tests).step);
+    const ui_tests = b.addTest(.{ .name = "fluxion-graph-ui-tests", .root_module = ui_mod });
+    test_step.dependOn(&b.addRunArtifact(ui_tests).step);
 }

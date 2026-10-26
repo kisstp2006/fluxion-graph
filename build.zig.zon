@@ -13,6 +13,11 @@
             .url = "git+https://github.com/kisstp2006/fluxion-script#6c01fa3aeaccc814eb7b23222563c641c6a1eec2",
             .hash = "fluxion_script-0.2.1-rt2DKouVFQAbWOWASDHXb1MT4hJ7jJ_5-VpYnDu7GvWB",
         },
+        // The editor's widget draws with it: the commit the engine pins.
+        .fluxion_ui = .{
+            .url = "git+https://github.com/kisstp2006/fluxion-ui#bb2addb94dd0592377660599483b692add1fa93c",
+            .hash = "fluxion_ui-0.2.3-lw4Ws0eSEACqOZFnlZNN8g-ErWrZYjErWnleaZsS6sBo",
+        },
         .fluxion_json = .{
             .url = "git+https://github.com/kisstp2006/fluxion-json#536986073e603ed950daec1c1039b18a3d2fc997",
             .hash = "fluxion_json-0.2.3-sFlLPfelBQCe7T4IG1Vwa5dkRu-9H9UhoNdxd01SPKjQ",
