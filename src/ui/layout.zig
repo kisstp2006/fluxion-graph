@@ -47,7 +47,15 @@ pub const Shape = struct {
     inputs: []const catalog.Pin,
     outputs: []const catalog.Pin,
     known: bool = true,
+    /// A point a link is led through: a dot, with no words, its input and
+    /// its output each side of it.
+    compact: bool = false,
 };
+
+/// Whether a node of `kind` is a point a link is led through.
+pub fn isReroute(kind: []const u8) bool {
+    return std.mem.eql(u8, kind, graph.compile.reroute_value) or std.mem.eql(u8, kind, graph.compile.reroute_run);
+}
 
 pub fn shapeOf(arena: Allocator, f: *const model.Function, nodes: *const catalog.Catalog, n: *const model.Node) Allocator.Error!Shape {
     if (std.mem.eql(u8, n.kind, model.entry_kind)) {
@@ -57,7 +65,7 @@ pub fn shapeOf(arena: Allocator, f: *const model.Function, nodes: *const catalog
         return .{ .title = f.name, .category = if (f.kind == .event) "Events" else "Functions", .inputs = &.{}, .outputs = outputs };
     }
     if (nodes.find(try catalog.keyOf(arena, n))) |e| {
-        var shape: Shape = .{ .title = e.title, .category = e.category, .inputs = e.inputs, .outputs = e.outputs };
+        var shape: Shape = .{ .title = e.title, .category = e.category, .inputs = e.inputs, .outputs = e.outputs, .compact = isReroute(n.kind) };
         // Pins the node says itself: a switch's cases, a text's values.
         if (std.mem.eql(u8, n.kind, "flow.switch")) if (n.call) |call| {
             const outputs = try arena.alloc(catalog.Pin, call.args.items.len + e.outputs.len);
@@ -107,6 +115,7 @@ pub fn label(pin: catalog.Pin) []const u8 {
 
 /// Its width and height.
 pub fn size(shape: Shape, m: Metrics) Point {
+    if (shape.compact) return .{ m.row, m.row };
     const small = m.font_size * 0.9;
     var widest_in: f32 = 0;
     var widest_out: f32 = 0;
@@ -122,6 +131,9 @@ pub const Side = enum { input, output };
 
 /// Where the pin `index` of `side` is, on a node at `at` of `node_size`.
 pub fn pinPoint(at: Point, node_size: Point, side: Side, index: usize, m: Metrics) Point {
+    // A point, a row each way as no node with words is: its pins either
+    // side of its middle.
+    if (node_size[0] == m.row and node_size[1] == m.row) return .{ if (side == .input) at[0] else at[0] + node_size[0], at[1] + node_size[1] / 2 };
     const y = at[1] + m.header + (@as(f32, @floatFromInt(index)) + 0.5) * m.row;
     return .{ if (side == .input) at[0] else at[0] + node_size[0], y };
 }
@@ -177,10 +189,11 @@ pub fn find(placed: []const Placed, id: u32) ?Placed {
 /// node's edge too, so its dot is easy to hit.
 pub fn hit(placed: []const Placed, p: Point, m: Metrics) Hit {
     var at = placed.len;
-    const reach = m.row * 0.5;
     while (at > 0) {
         at -= 1;
         const one = placed[at];
+        // A point's own middle is to move it by.
+        const reach = if (one.shape.compact) m.pin * 0.6 else m.row * 0.5;
         inline for (.{ Side.input, Side.output }) |side| {
             const pins = if (side == .input) one.shape.inputs else one.shape.outputs;
             for (pins, 0..) |pin, i| {
@@ -201,6 +214,76 @@ pub fn inside(placed: []const Placed, a: Point, b: Point, into: *std.ArrayList(u
         const at = one.node.at;
         if (at[0] < hi[0] and at[0] + one.size[0] > lo[0] and at[1] < hi[1] and at[1] + one.size[1] > lo[1]) try into.append(gpa, one.node.id);
     }
+}
+
+/// What of a comment is at a point: its header, to move it and what is in
+/// it by, or its bottom right corner, to size it by. The rest of it is the
+/// canvas's.
+pub const CommentHit = struct {
+    index: usize,
+    part: enum { header, corner },
+};
+
+pub fn hitComment(comments: []const model.Comment, p: Point, m: Metrics) ?CommentHit {
+    var at = comments.len;
+    const corner = m.pin * 1.4;
+    while (at > 0) {
+        at -= 1;
+        const c = comments[at];
+        const right = c.at[0] + c.size[0];
+        const bottom = c.at[1] + c.size[1];
+        if (p[0] >= right - corner and p[0] < right and p[1] >= bottom - corner and p[1] < bottom) return .{ .index = at, .part = .corner };
+        if (p[0] >= c.at[0] and p[0] < right and p[1] >= c.at[1] and p[1] < c.at[1] + m.header) return .{ .index = at, .part = .header };
+    }
+    return null;
+}
+
+/// The nodes wholly in a comment's box: what moves with it.
+pub fn within(placed: []const Placed, c: model.Comment, into: *std.ArrayList(u32), gpa: Allocator) Allocator.Error!void {
+    for (placed) |one| {
+        const at = one.node.at;
+        if (at[0] >= c.at[0] and at[1] >= c.at[1] and at[0] + one.size[0] <= c.at[0] + c.size[0] and at[1] + one.size[1] <= c.at[1] + c.size[1]) try into.append(gpa, one.node.id);
+    }
+}
+
+/// A box round the nodes `ids`, with room for a comment's header: what a
+/// comment made round them is.
+pub fn around(placed: []const Placed, ids: []const u32, m: Metrics) ?[2]Point {
+    var lo: Point = .{ std.math.floatMax(f32), std.math.floatMax(f32) };
+    var hi: Point = .{ -std.math.floatMax(f32), -std.math.floatMax(f32) };
+    var any = false;
+    for (placed) |one| {
+        if (std.mem.indexOfScalar(u32, ids, one.node.id) == null) continue;
+        any = true;
+        lo = .{ @min(lo[0], one.node.at[0]), @min(lo[1], one.node.at[1]) };
+        hi = .{ @max(hi[0], one.node.at[0] + one.size[0]), @max(hi[1], one.node.at[1] + one.size[1]) };
+    }
+    if (!any) return null;
+    const margin = m.row;
+    return .{ .{ lo[0] - margin, lo[1] - margin - m.header }, .{ hi[0] - lo[0] + 2 * margin, hi[1] - lo[1] + 2 * margin + m.header } };
+}
+
+/// The link whose curve passes within `reach` of a point.
+pub fn hitLink(placed: []const Placed, f: *const model.Function, p: Point, reach: f32, m: Metrics) ?model.Link {
+    var points: [25]Point = undefined;
+    for (f.links.items) |l| {
+        const from = find(placed, l.from.node) orelse continue;
+        const to = find(placed, l.to.node) orelse continue;
+        const a = from.pin(.output, l.from.pin, m) orelse continue;
+        const b = to.pin(.input, l.to.pin, m) orelse continue;
+        const along = curve(a, b, &points);
+        for (along[0 .. along.len - 1], along[1..]) |q, r| if (nearSegment(p, q, r) <= reach) return l;
+    }
+    return null;
+}
+
+fn nearSegment(p: Point, a: Point, b: Point) f32 {
+    const d: Point = .{ b[0] - a[0], b[1] - a[1] };
+    const length = d[0] * d[0] + d[1] * d[1];
+    const t = if (length == 0) 0 else std.math.clamp(((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1]) / length, 0, 1);
+    const x = a[0] + t * d[0] - p[0];
+    const y = a[1] + t * d[1] - p[1];
+    return @sqrt(x * x + y * y);
 }
 
 /// The points along the curve from an output at `from` to an input at

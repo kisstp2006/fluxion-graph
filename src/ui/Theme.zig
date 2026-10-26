@@ -34,6 +34,12 @@ typed: []const Typed,
 /// node's kind: the first that fits.
 headers: []const Header,
 header: Color,
+/// A box drawn round nodes, its header, and its edge.
+comment: Color = .bytes(90, 110, 140, 46),
+comment_header: Color = .bytes(90, 110, 140, 150),
+comment_border: Color = .bytes(130, 150, 180, 120),
+/// The edge of a node the game ran just now, as bright as it was lately.
+running: Color = .bytes(120, 220, 255, 255),
 
 pub const Typed = struct { type: []const u8, color: Color };
 pub const Header = struct {

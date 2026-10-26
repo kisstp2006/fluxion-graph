@@ -268,6 +268,8 @@ const Builder = struct {
         try b.add(.{ .key = "flow.while", .title = "While", .category = "Flow", .inputs = try b.pins(&.{ run_in, .{ .name = "condition", .type = "bool" } }), .outputs = try b.pins(&.{ .{ .name = "body", .run = true }, run_out }), .made = .{ .kind = "flow.while" } });
         try b.add(.{ .key = "flow.wait", .title = "Wait", .category = "Flow", .inputs = try b.pins(&.{ run_in, .{ .name = "seconds", .type = "float" } }), .outputs = try b.pins(&.{run_out}), .made = .{ .kind = "flow.wait" } });
         try b.add(.{ .key = "flow.print", .title = "Print", .category = "Flow", .inputs = try b.pins(&.{ run_in, .{ .name = "value" } }), .outputs = try b.pins(&.{run_out}), .made = .{ .kind = "flow.print" } });
+        try b.add(.{ .key = compile.reroute_value, .title = "Reroute", .category = "Flow", .doc = "A point a value's link is led through.", .inputs = try b.pins(&.{.{ .name = compile.reroute_in }}), .outputs = try b.pins(&.{.{ .name = compile.reroute_out }}), .made = .{ .kind = compile.reroute_value } });
+        try b.add(.{ .key = compile.reroute_run, .title = "Reroute", .category = "Flow", .doc = "A point a run's link is led through.", .inputs = try b.pins(&.{run_in}), .outputs = try b.pins(&.{run_out}), .made = .{ .kind = compile.reroute_run } });
         try b.add(.{ .key = "flow.return", .title = "Return", .category = "Flow", .inputs = try b.pins(&.{ run_in, .{ .name = "value" } }), .made = .{ .kind = "flow.return" } });
     }
 
@@ -550,9 +552,11 @@ fn knows(arena: Allocator, catalog: *const Catalog, n: *const model.Node) Alloca
     return catalog.find(try keyOf(arena, n)) != null;
 }
 
+pub const Side = enum { input, output };
+
 /// A pin of `n`: its entry's, or for the entry its function's `then` and
 /// parameters. A sequence has as many runs as are linked.
-fn pinOf(arena: Allocator, f: *const model.Function, catalog: *const Catalog, n: *const model.Node, name: []const u8, side: enum { input, output }) Allocator.Error!?Pin {
+pub fn pinOf(arena: Allocator, f: *const model.Function, catalog: *const Catalog, n: *const model.Node, name: []const u8, side: Side) Allocator.Error!?Pin {
     if (std.mem.eql(u8, n.kind, model.entry_kind)) {
         if (side == .input) return null;
         if (std.mem.eql(u8, name, compile.run_out)) return run_out;

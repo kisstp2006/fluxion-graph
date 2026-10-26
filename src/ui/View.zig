@@ -22,6 +22,17 @@
 //!   right button, asks for a node.
 //! - Delete takes out what is picked, but the entry; Ctrl+A picks all; F shows
 //!   all.
+//! - A comment is a box drawn under nodes, with words in its header: a drag
+//!   on the header moves it and the nodes in it, one on its corner sizes it.
+//!   C draws one round what is picked; a press on its header picks it.
+//! - A second press on a link leads it through a point, a node of its own
+//!   with no words, which moves as a node does.
+//! - A second press on a call of one of the graph's own functions opens that
+//!   function (`Outcome.enter`).
+//! - What is picked is copied as text for a clipboard (`copy`) and put back
+//!   by `paste`, new nodes each time; D does both at once.
+//! - The program may light nodes' edges - the ones a game ran just now - by
+//!   `Canvas.glow`.
 //!
 //! What a node is given on a pin, and which node to make, are the program's
 //! to ask: the view says when (`Outcome`), and the graph is changed only by
@@ -63,6 +74,9 @@ pub const Outcome = struct {
     picked: bool = false,
     /// Asked for a node to be made here.
     choose: ?Choose = null,
+    /// Asked to open the graph's function of this name: a call of it was
+    /// pressed twice.
+    enter: ?[]const u8 = null,
 };
 
 pub const Choose = struct {
@@ -90,7 +104,7 @@ pub const Pointer = struct {
     now: f64 = 0,
 };
 
-pub const Key = enum { delete, select_all, frame_all };
+pub const Key = enum { delete, select_all, frame_all, comment, duplicate };
 
 /// Where the view is, from last frame's layout: call after the frame is laid
 /// out.
@@ -109,17 +123,18 @@ pub fn draw(v: View, canvas: *const Canvas, ui: *Ui, arena: Allocator, f: *const
         .height = .grow,
         .background_color = v.theme.canvas,
         .clip = .both,
-        .cursor = if (canvas.drag == .pan or canvas.drag == .move) .resize_all else null,
+        .cursor = if (canvas.drag == .pan or canvas.drag == .move or canvas.drag == .comment) .resize_all else null,
     });
     defer ui.close();
     v.grid(canvas, ui);
+    for (f.comments.items, 0..) |c, i| v.comment(canvas, ui, c, canvas.comment == i);
     const placed = try layout.place(arena, f, nodes, v.metrics);
     for (f.links.items) |l| {
         const from = layout.find(placed, l.from.node) orelse continue;
         const to = layout.find(placed, l.to.node) orelse continue;
         const a = from.pin(.output, l.from.pin, v.metrics) orelse continue;
         const b = to.pin(.input, l.to.pin, v.metrics) orelse continue;
-        const pin = from.shape.outputs[layout.indexOf(from.shape.outputs, l.from.pin).?];
+        const pin = carried(placed, f, l.from.node, l.from.pin) orelse continue;
         v.wire(canvas, ui, canvas.toView(a), canvas.toView(b), v.theme.pinColor(pin.type, pin.run));
     }
     if (canvas.drag == .link) {
@@ -130,7 +145,9 @@ pub fn draw(v: View, canvas: *const Canvas, ui: *Ui, arena: Allocator, f: *const
             if (held.side == .output) v.wire(canvas, ui, a, canvas.pointer, color) else v.wire(canvas, ui, canvas.pointer, a, color);
         };
     }
-    for (placed) |one| try v.node(canvas, ui, arena, f, one);
+    for (placed) |one| {
+        if (one.shape.compact) v.point(canvas, ui, f, placed, one) else try v.node(canvas, ui, arena, f, one);
+    }
     if (canvas.drag == .box) {
         const box = canvas.drag.box;
         const a = canvas.toView(box.from);
@@ -165,6 +182,85 @@ fn grid(v: View, canvas: *const Canvas, ui: *Ui) void {
     }
 }
 
+/// The output pin `name` of node `id`, or - for a point a link is led
+/// through - the one that comes into it: what colours a link.
+fn carried(placed: []const layout.Placed, f: *const model.Function, id: u32, name: []const u8) ?catalog.Pin {
+    var node_id = id;
+    var pin_name = name;
+    for (0..64) |_| {
+        const one = layout.find(placed, node_id) orelse return null;
+        const pin = one.shape.outputs[layout.indexOf(one.shape.outputs, pin_name) orelse return null];
+        if (!one.shape.compact) return pin;
+        const into = for (f.links.items) |l| {
+            if (l.to.node == node_id) break l;
+        } else return pin;
+        node_id = into.from.node;
+        pin_name = into.from.pin;
+    }
+    return null;
+}
+
+fn comment(v: View, canvas: *const Canvas, ui: *Ui, c: model.Comment, picked: bool) void {
+    const m = v.metrics;
+    const z = canvas.zoom;
+    const theme = v.theme;
+    const at = canvas.toView(c.at);
+    ui.open(.{
+        .floating = .{ .offset = .{ .x = at[0], .y = at[1] }, .clip = .target },
+        .width = .fixed(c.size[0] * z),
+        .height = .fixed(c.size[1] * z),
+        .direction = .top_to_bottom,
+        .background_color = theme.comment,
+        .corner_radius = .all(6 * z),
+        .border = .all(if (picked) theme.selected else theme.comment_border, if (picked) 2 else 1),
+    });
+    ui.open(.{
+        .width = .grow,
+        .height = .fixed(m.header * z),
+        .padding = .xy(@intFromFloat(m.pad * z), 0),
+        .align_y = .center,
+        .background_color = theme.comment_header,
+        .corner_radius = .{ .top_left = 6 * z, .top_right = 6 * z },
+        .clip = .both,
+    });
+    if (z >= 0.35) ui.text(c.text, .{ .font_size = @intFromFloat(@max(4, @round(m.font_size * 1.1 * z))), .color = theme.text, .wrap = .none, .font = v.font });
+    ui.close();
+    ui.close();
+    // The corner it is sized by.
+    const corner = m.pin * 1.4 * z;
+    const end = canvas.toView(.{ c.at[0] + c.size[0], c.at[1] + c.size[1] });
+    ui.empty(.{
+        .floating = .{ .offset = .{ .x = end[0] - corner, .y = end[1] - corner }, .clip = .target },
+        .width = .fixed(corner),
+        .height = .fixed(corner),
+        .background_color = theme.comment_header,
+        .corner_radius = .{ .bottom_right = 6 * z },
+    });
+}
+
+/// A point a link is led through: a dot in its link's colour.
+fn point(v: View, canvas: *const Canvas, ui: *Ui, f: *const model.Function, placed: []const layout.Placed, one: layout.Placed) void {
+    const z = canvas.zoom;
+    const middle = canvas.toView(.{ one.node.at[0] + one.size[0] / 2, one.node.at[1] + one.size[1] / 2 });
+    const pin = carried(placed, f, one.node.id, if (one.shape.outputs.len > 0) one.shape.outputs[0].name else "") orelse catalog.Pin{ .name = "" };
+    const dot = v.metrics.pin * 1.4 * z;
+    const lit = canvas.glowOf(one.node.id);
+    ui.empty(.{
+        .floating = .{ .offset = .{ .x = middle[0] - dot / 2, .y = middle[1] - dot / 2 }, .z_index = 3, .clip = .target },
+        .width = .fixed(dot),
+        .height = .fixed(dot),
+        .background_color = v.theme.pinColor(pin.type, pin.run),
+        .border = if (lit > 0.05) .all(fade(v.theme.running, lit), 2) else if (canvas.isSelected(one.node.id)) .all(v.theme.selected, 2) else .all(v.theme.node_border, 1),
+        .corner_radius = .all(dot / 2),
+    });
+}
+
+fn fade(color: ui_lib.Color, by: f32) ui_lib.Color {
+    var c = color;
+    c.a *= std.math.clamp(by, 0, 1);
+    return c;
+}
+
 /// A link from `a` to `b` in the view: short straight pieces along its
 /// curve, each turned its way.
 fn wire(v: View, canvas: *const Canvas, ui: *Ui, a: Point, b: Point, color: ui_lib.Color) void {
@@ -194,6 +290,7 @@ fn node(v: View, canvas: *const Canvas, ui: *Ui, arena: Allocator, f: *const mod
     const at = canvas.toView(one.node.at);
     const theme = v.theme;
     const picked = canvas.isSelected(one.node.id);
+    const lit = canvas.glowOf(one.node.id);
     const font: u16 = @intFromFloat(@max(4, @round(m.font_size * z)));
     const small: u16 = @intFromFloat(@max(4, @round(m.font_size * 0.9 * z)));
     const words = z >= 0.35;
@@ -205,7 +302,7 @@ fn node(v: View, canvas: *const Canvas, ui: *Ui, arena: Allocator, f: *const mod
         .direction = .top_to_bottom,
         .background_color = theme.node,
         .corner_radius = .all(6 * z),
-        .border = .all(if (picked) theme.selected else theme.node_border, if (picked) 2 else 1),
+        .border = if (lit > 0.05) .all(fade(theme.running, lit), 3) else .all(if (picked) theme.selected else theme.node_border, if (picked) 2 else 1),
     });
     {
         ui.open(.{
@@ -326,6 +423,40 @@ pub fn pointer(v: View, canvas: *Canvas, g: *Graph, arena: Allocator, f: *model.
             }
             return outcome;
         },
+        .comment => |*held| {
+            if (p.down) {
+                const by: Point = .{ at[0] - held.last[0], at[1] - held.last[1] };
+                if ((by[0] != 0 or by[1] != 0) and held.index < f.comments.items.len) {
+                    const c = &f.comments.items[held.index];
+                    c.at = .{ c.at[0] + by[0], c.at[1] + by[1] };
+                    for (canvas.carried.items) |id| if (f.node(id)) |n| {
+                        n.at = .{ n.at[0] + by[0], n.at[1] + by[1] };
+                    };
+                    held.moved = true;
+                }
+                held.last = at;
+            } else {
+                outcome.changed = held.moved;
+                canvas.drag = .none;
+            }
+            return outcome;
+        },
+        .resize => |*held| {
+            if (p.down) {
+                if (held.index < f.comments.items.len) {
+                    const c = &f.comments.items[held.index];
+                    const size: Point = .{ @max(v.metrics.min_width, at[0] - c.at[0]), @max(v.metrics.header * 2, at[1] - c.at[1]) };
+                    if (size[0] != c.size[0] or size[1] != c.size[1]) {
+                        c.size = size;
+                        held.moved = true;
+                    }
+                }
+            } else {
+                outcome.changed = held.moved;
+                canvas.drag = .none;
+            }
+            return outcome;
+        },
         .box => |*held| {
             if (p.down) {
                 held.to = at;
@@ -353,6 +484,9 @@ pub fn pointer(v: View, canvas: *Canvas, g: *Graph, arena: Allocator, f: *model.
         return outcome;
     }
     if (!p.pressed) return outcome;
+    const again = p.now - canvas.last_press < 0.4 and @abs(local[0] - canvas.last_press_at[0]) < 6 and @abs(local[1] - canvas.last_press_at[1]) < 6;
+    canvas.last_press = p.now;
+    canvas.last_press_at = local;
     switch (under) {
         .pin => |pin| {
             // An input a link feeds gives the link up, to be put elsewhere.
@@ -368,6 +502,11 @@ pub fn pointer(v: View, canvas: *Canvas, g: *Graph, arena: Allocator, f: *model.
             canvas.drag = .{ .link = pin };
         },
         .node => |id| {
+            if (again) if (f.node(id)) |n| if (enters(g, n)) |name| {
+                outcome.enter = name;
+                return outcome;
+            };
+            if (!p.shift and canvas.comment != null) canvas.comment = null;
             if (p.shift) {
                 if (canvas.isSelected(id)) _ = canvas.selected.orderedRemove(id) else try canvas.select(id);
             } else if (!canvas.isSelected(id)) {
@@ -378,21 +517,63 @@ pub fn pointer(v: View, canvas: *Canvas, g: *Graph, arena: Allocator, f: *model.
             canvas.drag = .{ .move = .{ .last = at } };
         },
         .none => {
-            const again = p.now - canvas.last_press < 0.4 and @abs(local[0] - canvas.last_press_at[0]) < 6 and @abs(local[1] - canvas.last_press_at[1]) < 6;
-            canvas.last_press = p.now;
-            canvas.last_press_at = local;
+            if (layout.hitComment(f.comments.items, at, v.metrics)) |c| {
+                if (!p.shift) canvas.selected.clearRetainingCapacity();
+                canvas.comment = c.index;
+                outcome.picked = true;
+                switch (c.part) {
+                    .header => {
+                        canvas.carried.clearRetainingCapacity();
+                        try layout.within(placed, f.comments.items[c.index], &canvas.carried, canvas.gpa);
+                        canvas.drag = .{ .comment = .{ .index = c.index, .last = at } };
+                    },
+                    .corner => canvas.drag = .{ .resize = .{ .index = c.index } },
+                }
+                return outcome;
+            }
             if (again) {
+                if (layout.hitLink(placed, f, at, 6 / canvas.zoom, v.metrics)) |l| {
+                    outcome.changed = try v.reroute(g, f, placed, l, at);
+                    return outcome;
+                }
                 outcome.choose = .{ .at = at };
                 return outcome;
             }
-            if (!p.shift and canvas.selected.count() > 0) {
-                canvas.selected.clearRetainingCapacity();
+            if (!p.shift and (canvas.selected.count() > 0 or canvas.comment != null)) {
+                canvas.clear();
                 outcome.picked = true;
             }
             canvas.drag = .{ .box = .{ .from = at, .to = at } };
         },
     }
     return outcome;
+}
+
+/// The name of the graph's own function `n` calls, if it calls one.
+fn enters(g: *const Graph, n: *const model.Node) ?[]const u8 {
+    if (!std.mem.eql(u8, n.kind, "call")) return null;
+    const call = n.call orelse return null;
+    if (call.on != .self or g.function(call.name) == null) return null;
+    return call.name;
+}
+
+/// The link `l` led through a new point at `at`. Whether it was.
+fn reroute(v: View, g: *Graph, f: *model.Function, placed: []const layout.Placed, l: model.Link, at: Point) Allocator.Error!bool {
+    const from = layout.find(placed, l.from.node) orelse return false;
+    const pin = from.shape.outputs[layout.indexOf(from.shape.outputs, l.from.pin) orelse return false];
+    const compile = graph.compile;
+    const half = v.metrics.row / 2;
+    const id = try g.addNode(f, if (pin.run) compile.reroute_run else compile.reroute_value, .{ at[0] - half, at[1] - half });
+    _ = Graph.disconnect(f, l);
+    const in = if (pin.run) compile.run_in else compile.reroute_in;
+    const out = if (pin.run) compile.run_out else compile.reroute_out;
+    inline for (.{ .{ l.from, model.End{ .node = id, .pin = in } }, .{ model.End{ .node = id, .pin = out }, l.to } }) |ends| {
+        g.connect(f, ends[0], ends[1]) catch |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            else => return false,
+        };
+    }
+    return true;
 }
 
 /// The link that feeds the value input `pin`, if one does: a run input is
@@ -427,15 +608,36 @@ pub fn connect(g: *Graph, f: *model.Function, a: layout.Hit.Pin, b: layout.Hit.P
     return true;
 }
 
-pub fn key(v: View, canvas: *Canvas, arena: Allocator, f: *model.Function, nodes: *const catalog.Catalog, k: Key) Allocator.Error!Outcome {
+pub fn key(v: View, canvas: *Canvas, g: *Graph, arena: Allocator, f: *model.Function, nodes: *const catalog.Catalog, k: Key) Allocator.Error!Outcome {
     var outcome: Outcome = .{};
     switch (k) {
         .delete => {
             for (canvas.selected.keys()) |id| {
                 if (Graph.removeNode(f, id)) outcome.changed = true;
             }
-            canvas.selected.clearRetainingCapacity();
+            if (canvas.comment) |c| {
+                if (Graph.removeComment(f, c)) outcome.changed = true;
+            }
+            canvas.clear();
             outcome.picked = true;
+        },
+        .comment => {
+            const placed = try layout.place(arena, f, nodes, v.metrics);
+            const box = layout.around(placed, canvas.selected.keys(), v.metrics) orelse [2]Point{ canvas.toCanvas(canvas.pointer), .{ 320, 180 } };
+            canvas.selected.clearRetainingCapacity();
+            canvas.comment = try g.addComment(f, box[0], box[1], "Comment");
+            outcome.changed = true;
+            outcome.picked = true;
+        },
+        .duplicate => {
+            if (canvas.selected.count() == 0) return outcome;
+            var lo: Point = .{ std.math.floatMax(f32), std.math.floatMax(f32) };
+            for (canvas.selected.keys()) |id| if (f.node(id)) |n| {
+                lo = .{ @min(lo[0], n.at[0]), @min(lo[1], n.at[1]) };
+            };
+            const text = try copy(canvas, canvas.gpa, f);
+            defer canvas.gpa.free(text);
+            return paste(canvas, g, f, text, .{ lo[0] + v.metrics.row * 2, lo[1] + v.metrics.row * 2 });
         },
         .select_all => {
             for (f.nodes.items) |n| try canvas.select(n.id);
@@ -444,6 +646,26 @@ pub fn key(v: View, canvas: *Canvas, arena: Allocator, f: *model.Function, nodes
         .frame_all => canvas.frame(try layout.place(arena, f, nodes, v.metrics)),
     }
     return outcome;
+}
+
+/// What is picked - its nodes, the links between them and its comment -
+/// as text for a clipboard, `gpa`'s.
+pub fn copy(canvas: *const Canvas, gpa: Allocator, f: *const model.Function) Allocator.Error![]u8 {
+    const comments: []const usize = if (canvas.comment) |*c| c[0..1] else &.{};
+    return Graph.copy(gpa, f, canvas.selected.keys(), comments) catch return error.OutOfMemory;
+}
+
+/// What `copy` gave put into `f` with its top left at `at` - or under the
+/// pointer - as new nodes, and picked. Text that is no copy of nodes is
+/// let be.
+pub fn paste(canvas: *Canvas, g: *Graph, f: *model.Function, text: []const u8, at: ?Point) Allocator.Error!Outcome {
+    const made = g.paste(f, text, at orelse canvas.toCanvas(canvas.pointer)) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return .{},
+    };
+    canvas.clear();
+    for (made) |id| try canvas.select(id);
+    return .{ .changed = made.len > 0, .picked = true };
 }
 
 // ---------------------------------------------------------------------------
@@ -476,7 +698,11 @@ const Fixture = struct {
     }
 
     fn press(self: *Fixture, v: View, f: *model.Function, at: Point, down: bool, pressed: bool) !Outcome {
-        return v.pointer(&self.canvas, &self.graph, self.arena.allocator(), f, &self.nodes, .{ .x = at[0], .y = at[1], .down = down, .pressed = pressed, .now = 1 });
+        return self.pressAt(v, f, at, down, pressed, 1);
+    }
+
+    fn pressAt(self: *Fixture, v: View, f: *model.Function, at: Point, down: bool, pressed: bool, now: f64) !Outcome {
+        return v.pointer(&self.canvas, &self.graph, self.arena.allocator(), f, &self.nodes, .{ .x = at[0], .y = at[1], .down = down, .pressed = pressed, .now = now });
     }
 };
 
@@ -541,8 +767,8 @@ test "a press picks a node and a drag moves what is picked; a box picks what is 
     _ = try fx.press(v, f, .{ 700, 500 }, false, false);
     try testing.expect(fx.canvas.isSelected(a) and fx.canvas.isSelected(b));
 
-    _ = try v.key(&fx.canvas, fx.arena.allocator(), f, &fx.nodes, .select_all);
-    const gone = try v.key(&fx.canvas, fx.arena.allocator(), f, &fx.nodes, .delete);
+    _ = try v.key(&fx.canvas, &fx.graph, fx.arena.allocator(), f, &fx.nodes, .select_all);
+    const gone = try v.key(&fx.canvas, &fx.graph, fx.arena.allocator(), f, &fx.nodes, .delete);
     try testing.expect(gone.changed);
     try testing.expectEqual(@as(usize, 1), f.nodes.items.len);
 }
@@ -580,4 +806,90 @@ test "a frame of the view draws the nodes with their words and dots, and the lin
     try testing.expect(saw_title and saw_value);
     // The link's pieces, the nodes, their dots and the grid.
     try testing.expect(turned > 30);
+}
+
+test "a comment's header moves it and what is in it, its corner sizes it, and Delete takes it out alone" {
+    var fx: Fixture = undefined;
+    try fx.init();
+    defer fx.deinit();
+    const v: View = .{};
+    const f = try fx.graph.addFunction("ready", .event);
+    const a = try fx.graph.addNode(f, "flow.print", .{ 300, 100 });
+    const b = try fx.graph.addNode(f, "flow.print", .{ 700, 400 });
+    // C round what is picked.
+    try fx.canvas.select(a);
+    const drawn = try v.key(&fx.canvas, &fx.graph, fx.arena.allocator(), f, &fx.nodes, .comment);
+    try testing.expect(drawn.changed and fx.canvas.comment.? == 0);
+    const c = f.comments.items[0];
+    try testing.expect(c.at[0] < 300 and c.at[1] < 100 - v.metrics.header);
+
+    _ = try fx.pressAt(v, f, .{ c.at[0] + 20, c.at[1] + 5 }, true, true, 10);
+    try testing.expect(fx.canvas.drag == .comment);
+    _ = try fx.pressAt(v, f, .{ c.at[0] + 70, c.at[1] + 25 }, true, false, 10.1);
+    const moved = try fx.pressAt(v, f, .{ c.at[0] + 70, c.at[1] + 25 }, false, false, 10.2);
+    try testing.expect(moved.changed);
+    try testing.expectEqual(Point{ 350, 120 }, f.node(a).?.at);
+    try testing.expectEqual(Point{ 700, 400 }, f.node(b).?.at);
+
+    const end: Point = .{ f.comments.items[0].at[0] + f.comments.items[0].size[0] - 3, f.comments.items[0].at[1] + f.comments.items[0].size[1] - 3 };
+    _ = try fx.pressAt(v, f, end, true, true, 20);
+    try testing.expect(fx.canvas.drag == .resize);
+    _ = try fx.pressAt(v, f, .{ 900, 700 }, true, false, 20.1);
+    _ = try fx.pressAt(v, f, .{ 900, 700 }, false, false, 20.2);
+    try testing.expectEqual(Point{ 900, 700 }, Point{ f.comments.items[0].at[0] + f.comments.items[0].size[0], f.comments.items[0].at[1] + f.comments.items[0].size[1] });
+
+    _ = try v.key(&fx.canvas, &fx.graph, fx.arena.allocator(), f, &fx.nodes, .delete);
+    try testing.expectEqual(@as(usize, 0), f.comments.items.len);
+    try testing.expectEqual(@as(usize, 3), f.nodes.items.len);
+}
+
+test "a link pressed twice is led through a point; a call of the graph's own function pressed twice opens it; D copies what is picked" {
+    var fx: Fixture = undefined;
+    try fx.init();
+    defer fx.deinit();
+    const v: View = .{};
+    _ = try fx.graph.addFunction("helper", .function);
+    const f = try fx.graph.addFunction("ready", .event);
+    const say = try fx.graph.addNode(f, "flow.print", .{ 400, 0 });
+    try fx.graph.connect(f, .{ .node = 1, .pin = "then" }, .{ .node = say, .pin = "run" });
+    try fx.graph.setValue(f, say, "value", .{ .int = 1 });
+    fx.nodes = try catalog.build(fx.arena.allocator(), .{ .types = &.{}, .globals = &.{}, .hooks = &.{}, .builtins = &.{}, .modules = &.{} }, &fx.graph.file, .{});
+
+    // Halfway along the run's link.
+    const placed = try layout.place(fx.arena.allocator(), f, &fx.nodes, v.metrics);
+    const from = layout.find(placed, 1).?.pin(.output, "then", v.metrics).?;
+    const to = layout.find(placed, say).?.pin(.input, "run", v.metrics).?;
+    const middle: Point = .{ (from[0] + to[0]) / 2, (from[1] + to[1]) / 2 };
+    _ = try fx.pressAt(v, f, middle, true, true, 5);
+    _ = try fx.pressAt(v, f, middle, false, false, 5.05);
+    const led = try fx.pressAt(v, f, middle, true, true, 5.1);
+    try testing.expect(led.changed);
+    _ = try fx.pressAt(v, f, middle, false, false, 5.15);
+    try testing.expectEqual(@as(usize, 2), f.links.items.len);
+    const point_id = f.links.items[0].to.node;
+    try testing.expectEqualStrings(graph.compile.reroute_run, f.node(point_id).?.kind);
+    const arena = fx.arena.allocator();
+    const made = try graph.compile.compile(arena, &fx.graph.file, .{});
+    try testing.expectEqual(@as(usize, 0), made.problems.len);
+    try testing.expect(std.mem.indexOf(u8, made.text, "print(1);") != null);
+
+    // A call of helper, pressed twice.
+    const call = try fx.graph.addNode(f, "call", .{ 400, 300 });
+    f.node(call).?.call = .{ .on = .self, .name = "helper" };
+    _ = try fx.pressAt(v, f, .{ 420, 305 }, true, true, 30);
+    _ = try fx.pressAt(v, f, .{ 420, 305 }, false, false, 30.05);
+    const opened = try fx.pressAt(v, f, .{ 420, 305 }, true, true, 30.1);
+    try testing.expectEqualStrings("helper", opened.enter.?);
+    _ = try fx.pressAt(v, f, .{ 420, 305 }, false, false, 30.15);
+
+    // D: the print and the call again, a little down and right, picked.
+    fx.canvas.clear();
+    try fx.canvas.select(say);
+    try fx.canvas.select(call);
+    const copied = try v.key(&fx.canvas, &fx.graph, arena, f, &fx.nodes, .duplicate);
+    try testing.expect(copied.changed);
+    try testing.expectEqual(@as(usize, 6), f.nodes.items.len);
+    try testing.expect(!fx.canvas.isSelected(say) and fx.canvas.selected.count() == 2);
+    const new_say = fx.canvas.selected.keys()[0];
+    try testing.expectEqual(Point{ 400 + v.metrics.row * 2, v.metrics.row * 2 }, f.node(new_say).?.at);
 }

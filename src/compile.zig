@@ -67,11 +67,23 @@ pub const Options = struct {
     /// the graph names none, as a Flux file's is - `BigDoor` for
     /// `big_door.fxgraph`.
     path: []const u8 = "",
+    /// A call written before each node that runs - the entry, an action,
+    /// a branch - so a program watching the game knows which ran: Flux's
+    /// `{call}({file}, {function}, {node});`, `function` the function's
+    /// place in `File.functions`. None for a game's own run.
+    trace: ?Trace = null,
+
+    pub const Trace = struct {
+        /// A function the VM has, taking three ints.
+        call: []const u8,
+        /// What the watcher knows the graph by.
+        file: u32 = 0,
+    };
 };
 
 /// Flux for `file`, all of it in `arena`.
 pub fn compile(arena: Allocator, file: *const model.File, options: Options) Allocator.Error!Compiled {
-    var w: Writer = .{ .arena = arena, .file = file };
+    var w: Writer = .{ .arena = arena, .file = file, .trace = options.trace };
     try w.structure(options);
     return .{ .text = w.out.items, .lines = w.lines.items, .problems = w.problems.items };
 }
@@ -100,6 +112,14 @@ pub const run_in = "run";
 pub const run_out = "then";
 /// A call's value.
 pub const result_pin = "result";
+
+/// The points a link is led through, to lay it out: one a value goes
+/// through, `reroute_in` to `reroute_out`, and one a run does, `run` to
+/// `then`. Neither is anything in the Flux.
+pub const reroute_value = "reroute";
+pub const reroute_run = "flow.reroute";
+pub const reroute_in = "in";
+pub const reroute_out = "out";
 
 /// An expression a node of `kind` is, its input pins written `{pin}`.
 const Template = struct { kind: []const u8, text: []const u8 };
@@ -157,6 +177,7 @@ const Writer = struct {
     lines: std.ArrayList(Line) = .empty,
     problems: std.ArrayList(Problem) = .empty,
     depth: usize = 0,
+    trace: ?Options.Trace = null,
 
     // The function being written.
     at: ?u32 = null,
@@ -175,6 +196,12 @@ const Writer = struct {
         for (0..w.depth) |_| try w.out.appendSlice(w.arena, "    ");
         try w.out.print(w.arena, fmt ++ "\n", args);
         try w.lines.append(w.arena, .{ .function = w.at, .node = node });
+    }
+
+    /// The trace's call for `node`, where there is one.
+    fn ran(w: *Writer, node: u32) Allocator.Error!void {
+        const t = w.trace orelse return;
+        try w.line(node, "{s}({d}, {d}, {d});", .{ t.call, t.file, w.at orelse 0, node });
     }
 
     fn problem(w: *Writer, node: u32, comptime fmt: []const u8, args: anytype) Allocator.Error!void {
@@ -270,7 +297,10 @@ const Writer = struct {
         const entry = for (f.nodes.items) |*n| {
             if (std.mem.eql(u8, n.kind, model.entry_kind)) break n;
         } else null;
-        if (entry) |n| try w.chain(n.id, run_out) else try w.problem(0, "{s} has no entry", .{f.name});
+        if (entry) |n| {
+            try w.ran(n.id);
+            try w.chain(n.id, run_out);
+        } else try w.problem(0, "{s} has no entry", .{f.name});
         w.depth -= 1;
         try w.line(0, "}}", .{});
     }
@@ -330,7 +360,10 @@ const Writer = struct {
         if (w.running.contains(n.id)) return w.problem(n.id, "the run comes back round to here: a loop is a loop node", .{});
         try w.running.put(w.arena, n.id, {});
         defer _ = w.running.remove(n.id);
+        try w.ran(n.id);
         const kind = n.kind;
+        // A point a run is led through, to lay its link out.
+        if (eql(kind, reroute_run)) return w.chain(n.id, run_out);
         if (eql(kind, "call")) {
             const call = n.call orelse return w.problem(n.id, "a call that names nothing to call", .{});
             if (!call.action) return w.problem(n.id, "{s} changes nothing, so it is not run: use its value", .{call.name});
@@ -521,6 +554,7 @@ const Writer = struct {
             };
             return w.callText(n, call);
         }
+        if (eql(kind, reroute_value)) return w.input(n, reroute_in);
         if (eql(kind, "var.get")) return std.fmt.allocPrint(w.arena, "self.{s}", .{try w.named(id, n.member)});
         if (eql(kind, "local.get")) return w.named(id, n.member);
         if (eql(kind, "function.ref")) return std.fmt.allocPrint(w.arena, "self.{s}", .{try w.named(id, n.member)});
@@ -818,6 +852,43 @@ test "a graph is written as the Flux struct it draws, each line kept with the no
     try testing.expectEqual(@as(u32, 10), made.lineAt(10).node);
     try testing.expectEqual(@as(?u32, 0), made.lineAt(7).function);
     try testing.expectEqual(@as(?u32, null), made.lineAt(3).function);
+}
+
+test "a link led through reroute points is written as the link itself, and a trace says each node that runs" {
+    var graph = try door(testing.allocator);
+    defer graph.deinit();
+    const update = graph.function("update").?;
+    var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer arena.deinit();
+    const plain = try compile(arena.allocator(), &graph.file, .{});
+
+    // add -> set.value and set.then -> branch, each through a point.
+    const value = try graph.addNode(update, reroute_value, .{ 150, 40 });
+    try testing.expect(Graph.disconnect(update, .{ .from = .{ .node = 3, .pin = "out" }, .to = .{ .node = 2, .pin = "value" } }));
+    try graph.connect(update, .{ .node = 3, .pin = "out" }, .{ .node = value, .pin = reroute_in });
+    try graph.connect(update, .{ .node = value, .pin = reroute_out }, .{ .node = 2, .pin = "value" });
+    const run = try graph.addNode(update, reroute_run, .{ 300, 0 });
+    try testing.expect(Graph.disconnect(update, .{ .from = .{ .node = 2, .pin = run_out }, .to = .{ .node = 7, .pin = run_in } }));
+    try graph.connect(update, .{ .node = 2, .pin = run_out }, .{ .node = run, .pin = run_in });
+    try graph.connect(update, .{ .node = run, .pin = run_out }, .{ .node = 7, .pin = run_in });
+    const rerouted = try compile(arena.allocator(), &graph.file, .{});
+    try testing.expectEqual(@as(usize, 0), rerouted.problems.len);
+    try testing.expectEqualStrings(plain.text, rerouted.text);
+
+    const traced = try compile(arena.allocator(), &graph.file, .{ .trace = .{ .call = "ran", .file = 3 } });
+    try testing.expectEqual(@as(usize, 0), traced.problems.len);
+    try testing.expect(std.mem.indexOf(u8, traced.text,
+        \\    fn update(self, dt: float) {
+        \\        ran(3, 0, 1);
+        \\        ran(3, 0, 2);
+        \\        self.turned = (self.turned + (dt * self.speed));
+        \\        ran(3, 0, 12);
+        \\        ran(3, 0, 7);
+        \\        if ((self.turned > 90.0)) {
+        \\            ran(3, 0, 9);
+    ) != null);
+    // A trace's line is its node's too.
+    try testing.expectEqual(@as(u32, 2), traced.lineAt(8).node);
 }
 
 test "what cannot be written is said at its node, and the rest is written all the same" {

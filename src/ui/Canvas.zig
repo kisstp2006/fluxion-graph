@@ -20,6 +20,14 @@ pan: Point = .{ 60, 60 },
 zoom: f32 = 1,
 /// The picked nodes, by id.
 selected: std.AutoArrayHashMapUnmanaged(u32, void) = .empty,
+/// The picked comment, by its place in the function's.
+comment: ?usize = null,
+/// What a comment moved carries: the nodes in its box when it was picked
+/// up.
+carried: std.ArrayList(u32) = .empty,
+/// How bright each node's edge is, nought to one: the program's to say -
+/// the nodes a game ran just now.
+glow: std.AutoHashMapUnmanaged(u32, f32) = .empty,
 drag: Drag = .none,
 /// The view's box on the surface last frame: x, y, width, height.
 view: [4]f32 = .{ 0, 0, 0, 0 },
@@ -43,6 +51,10 @@ pub const Drag = union(enum) {
     link: layout.Hit.Pin,
     /// A box drawn to pick what is in it, in the canvas.
     box: struct { from: Point, to: Point },
+    /// A comment moved by its header, and what it carries.
+    comment: struct { index: usize, last: Point, moved: bool = false },
+    /// A comment sized by its corner.
+    resize: struct { index: usize, moved: bool = false },
 };
 
 pub fn init(gpa: Allocator) Canvas {
@@ -51,6 +63,8 @@ pub fn init(gpa: Allocator) Canvas {
 
 pub fn deinit(self: *Canvas) void {
     self.selected.deinit(self.gpa);
+    self.carried.deinit(self.gpa);
+    self.glow.deinit(self.gpa);
 }
 
 /// A point of the view as a point of the canvas.
@@ -77,6 +91,17 @@ pub fn isSelected(self: *const Canvas, id: u32) bool {
 
 pub fn select(self: *Canvas, id: u32) Allocator.Error!void {
     try self.selected.put(self.gpa, id, {});
+}
+
+/// Nothing picked: no node, no comment.
+pub fn clear(self: *Canvas) void {
+    self.selected.clearRetainingCapacity();
+    self.comment = null;
+}
+
+/// How bright the edge of node `id` is.
+pub fn glowOf(self: *const Canvas, id: u32) f32 {
+    return self.glow.get(id) orelse 0;
 }
 
 /// Every node shown, as near as fits up to a zoom of one, in the middle of

@@ -53,10 +53,11 @@ The file is JSON. A node's `kind` is the name the catalog gives it (`flow.branch
 | | What it is |
 | --- | --- |
 | `model` | What a graph's file holds: `File`, `Variable`, `Signal`, `Function`, `Node`, `Link`. |
-| `Graph` | A graph read, changed and written: its file and the memory it lives in, with the edits an editor makes (imports, functions, variables, signals, nodes, links, a pin's value). |
+| `Graph` | A graph read, changed and written: its file and the memory it lives in, with the edits an editor makes (imports, functions, variables, signals, nodes, links, a pin's value, comments), and `copy` and `paste`: nodes as clipboard text (`model.Clip`), put back as new nodes. |
+| `collapse` | Nodes of a function made a function of their own, with a call of it where they were: the values coming in its parameters, the one going out its result. |
 | `catalog` | The kinds of node there are, each with its pins and the node it makes: built from `flux.service.catalog` and the graph's own variables, signals and functions; and `check`, the links checked by their pins' types. |
 | `tools/to_flux.zig` | `fluxion-graph-flux <file.fxgraph>`: the Flux a graph is made into, for a terminal. |
-| `compile` | A graph made into Flux text, with each line kept with the node it came from (`Compiled.lineAt`), and what cannot be written said at its node (`Problem`). |
+| `compile` | A graph made into Flux text, with each line kept with the node it came from (`Compiled.lineAt`), and what cannot be written said at its node (`Problem`). With `Options.trace`, a call before each node that runs, for a program watching the game to light it. |
 
 ## Nodes
 
@@ -75,6 +76,7 @@ The other kinds:
 | `flow.sequence` | The runs `then_0`, `then_1`, and on, one after another. |
 | `flow.for_each`, `flow.repeat`, `flow.while` | Loops: `body`, then `then`. `item` and `index` inside. |
 | `flow.wait`, `flow.print`, `flow.return` | `await wait(seconds)`, `print(value)`, `return`. |
+| `reroute`, `flow.reroute` | A point a value's link (`in` to `out`) or a run's (`run` to `then`) is led through: nothing in the Flux. |
 
 `member.get` and `member.set` read and set a field of what their `call` names, as a call is made on it.
 
@@ -110,7 +112,12 @@ What the hand does to it:
 - a drag from a pin draws a link, which is made if it is let go on a pin that fits;
 - a drag from an input a link feeds takes that link off;
 - a drag on nothing picks what is in its box;
-- Delete, Ctrl+A and F take out, pick all and show all.
+- Delete, Ctrl+A and F take out, pick all and show all;
+- C draws a comment round what is picked; its header moves it with the nodes in it, its corner sizes it;
+- a second press on a link leads it through a reroute point;
+- a second press on a call of the graph's own function asks to open it (`Outcome.enter`);
+- `copy` and `paste` give what is picked as clipboard text and put it back; D duplicates;
+- `Canvas.glow` lights nodes' edges: the ones a game ran just now.
 
 What a pin is given, and which node to make (`Outcome.choose`: let go on nothing, a second press, the right button), are the program's to ask. Each `Outcome` that says `changed` is one step to undo.
 

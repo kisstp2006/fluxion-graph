@@ -206,3 +206,15 @@ pub const Comment = struct {
     size: [2]f32,
     text: []const u8 = "",
 };
+
+/// Nodes copied out of a function, with the links between them and the
+/// comments copied with them: what `Graph.copy` writes for a clipboard, and
+/// `Graph.paste` puts into a function again, each node given a new id.
+pub const Clip = struct {
+    /// What the text is, and in which version: none in JSON that is no
+    /// clip.
+    fluxion_graph_clip: u32 = 0,
+    nodes: std.ArrayList(Node) = .empty,
+    links: std.ArrayList(Link) = .empty,
+    comments: std.ArrayList(Comment) = .empty,
+};

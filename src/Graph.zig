@@ -291,6 +291,119 @@ pub fn clearValue(f: *Function, id: u32, pin: []const u8) bool {
     return false;
 }
 
+/// A copy of `n`, at `at` in `f`, given a new id: its words, its call and
+/// its values the graph's.
+pub fn addCopy(self: *Graph, f: *Function, n: *const Node, at: [2]f32) json.EditError!u32 {
+    const gpa = self.allocator();
+    const id = try self.addNode(f, n.kind, at);
+    const made = f.node(id).?;
+    made.member = try gpa.dupe(u8, n.member);
+    made.type = try gpa.dupe(u8, n.type);
+    if (n.call) |call| {
+        var args: std.ArrayList([]const u8) = .empty;
+        for (call.args.items) |arg| try args.append(gpa, try gpa.dupe(u8, arg));
+        made.call = call;
+        made.call.?.of = try gpa.dupe(u8, call.of);
+        made.call.?.name = try gpa.dupe(u8, call.name);
+        made.call.?.args = args;
+    }
+    for (n.values.items) |v| try made.values.append(gpa, .{ .pin = try gpa.dupe(u8, v.pin), .value = try self.clone(v.value) });
+    return id;
+}
+
+// -------------------------------------------------------------------------
+// Comments
+// -------------------------------------------------------------------------
+
+/// A box from `at`, `size` big, with `text` in it: its place in
+/// `f.comments`.
+pub fn addComment(self: *Graph, f: *Function, at: [2]f32, size: [2]f32, text: []const u8) Allocator.Error!usize {
+    const gpa = self.allocator();
+    try f.comments.append(gpa, .{ .at = at, .size = size, .text = try gpa.dupe(u8, text) });
+    return f.comments.items.len - 1;
+}
+
+/// The words of the comment at `index`, in place of what they were.
+pub fn setCommentText(self: *Graph, f: *Function, index: usize, text: []const u8) Allocator.Error!void {
+    if (index >= f.comments.items.len) return;
+    f.comments.items[index].text = try self.allocator().dupe(u8, text);
+}
+
+/// Take the comment at `index` out: false where there is none. What is in
+/// its box stays.
+pub fn removeComment(f: *Function, index: usize) bool {
+    if (index >= f.comments.items.len) return false;
+    _ = f.comments.orderedRemove(index);
+    return true;
+}
+
+// -------------------------------------------------------------------------
+// Copying and pasting
+// -------------------------------------------------------------------------
+
+/// The nodes `ids` of `f` - but its entry - with the links between them
+/// and the comments `comments`, as the text of a `model.Clip`, `gpa`'s.
+pub fn copy(gpa: Allocator, f: *const Function, ids: []const u32, comments: []const usize) json.StringifyError![]u8 {
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var clip: model.Clip = .{ .fluxion_graph_clip = model.version };
+    for (f.nodes.items) |n| {
+        if (std.mem.eql(u8, n.kind, model.entry_kind) or std.mem.indexOfScalar(u32, ids, n.id) == null) continue;
+        try clip.nodes.append(a, n);
+    }
+    for (f.links.items) |l| {
+        if (has(clip.nodes.items, l.from.node) and has(clip.nodes.items, l.to.node)) try clip.links.append(a, l);
+    }
+    for (comments) |i| if (i < f.comments.items.len) try clip.comments.append(a, f.comments.items[i]);
+    return json.stringify(gpa, clip, .{});
+}
+
+fn has(nodes: []const Node, id: u32) bool {
+    for (nodes) |n| if (n.id == id) return true;
+    return false;
+}
+
+pub const PasteError = json.Error || json.EditError || error{
+    /// The text is no clip `copy` wrote.
+    NotAClip,
+};
+
+/// What `copy` wrote put into `f`, each node with a new id and the links
+/// between them made again: its top left at `at`, or where it was copied
+/// from. The new nodes' ids, in the graph's memory.
+pub fn paste(self: *Graph, f: *Function, text: []const u8, at: ?[2]f32) PasteError![]u32 {
+    const parsed = try json.parseAs(model.Clip, self.arena.child_allocator, text, .{});
+    defer parsed.deinit();
+    const clip = &parsed.value;
+    if (clip.fluxion_graph_clip == 0) return error.NotAClip;
+    var by: [2]f32 = .{ 0, 0 };
+    if (at) |to| {
+        var lo: [2]f32 = .{ std.math.floatMax(f32), std.math.floatMax(f32) };
+        for (clip.nodes.items) |n| lo = .{ @min(lo[0], n.at[0]), @min(lo[1], n.at[1]) };
+        for (clip.comments.items) |c| lo = .{ @min(lo[0], c.at[0]), @min(lo[1], c.at[1]) };
+        if (lo[0] != std.math.floatMax(f32)) by = .{ to[0] - lo[0], to[1] - lo[1] };
+    }
+    const gpa = self.allocator();
+    const made = try gpa.alloc(u32, clip.nodes.items.len);
+    for (clip.nodes.items, made) |*n, *id| id.* = try self.addCopy(f, n, .{ n.at[0] + by[0], n.at[1] + by[1] });
+    for (clip.links.items) |l| {
+        const from = newId(clip.nodes.items, made, l.from.node) orelse continue;
+        const to = newId(clip.nodes.items, made, l.to.node) orelse continue;
+        self.connect(f, .{ .node = from, .pin = l.from.pin }, .{ .node = to, .pin = l.to.pin }) catch |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            else => {},
+        };
+    }
+    for (clip.comments.items) |c| _ = try self.addComment(f, .{ c.at[0] + by[0], c.at[1] + by[1] }, c.size, c.text);
+    return made;
+}
+
+fn newId(nodes: []const Node, made: []const u32, old: u32) ?u32 {
+    for (nodes, made) |n, id| if (n.id == old) return id;
+    return null;
+}
+
 /// `value`, however deep, in the graph's memory.
 fn clone(self: *Graph, value: json.Value) json.EditError!json.Value {
     const doc: json.Document = .{ .arena = self.arena };
@@ -382,4 +495,36 @@ test "a name is the struct's once, whatever it names" {
     try testing.expectError(error.NameTaken, graph.addVariable(.{ .name = "opened", .type = "int" }));
     try testing.expect(graph.removeFunction("update"));
     _ = try graph.addSignal("update", &.{});
+}
+
+test "nodes copied and pasted are new nodes, linked between them as they were, where they are put" {
+    var graph = try door(testing.allocator);
+    defer graph.deinit();
+    const update = graph.function("update").?;
+    _ = try graph.addComment(update, .{ 100, -40 }, .{ 300, 200 }, "turning");
+    // The entry is never copied; nor the link from it.
+    const text = try copy(testing.allocator, update, &.{ 1, 2, 3 }, &.{0});
+    defer testing.allocator.free(text);
+
+    const ready = try graph.addFunction("ready", .event);
+    const made = try graph.paste(ready, text, .{ 500, 500 });
+    try testing.expectEqual(@as(usize, 2), made.len);
+    try testing.expectEqual(@as(usize, 3), ready.nodes.items.len);
+    try testing.expectEqual(@as(usize, 1), ready.links.items.len);
+    try testing.expectEqual(made[1], ready.links.items[0].from.node);
+    try testing.expectEqualStrings("by", ready.links.items[0].to.pin);
+    try testing.expectEqual(@as(f64, 0.5), ready.node(made[1]).?.valueOf("b").?.float);
+    // The comment was the top left: it is at the point now, and the nodes
+    // as far from it as they were.
+    try testing.expectEqual([2]f32{ 500, 500 }, ready.comments.items[0].at);
+    try testing.expectEqualStrings("turning", ready.comments.items[0].text);
+    try testing.expectEqual([2]f32{ 640, 540 }, ready.node(made[0]).?.at);
+
+    // Pasted again where it was: new ids again. (A function added moves
+    // the others.)
+    const update_now = graph.function("update").?;
+    const again = try graph.paste(update_now, text, null);
+    try testing.expect(again[0] > 3);
+    try testing.expectEqual(update_now.node(2).?.at, update_now.node(again[0]).?.at);
+    try testing.expectError(error.NotAClip, graph.paste(update_now, "{}", null));
 }

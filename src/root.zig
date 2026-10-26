@@ -7,6 +7,7 @@ pub const model = @import("model.zig");
 pub const Graph = @import("Graph.zig");
 pub const compile = @import("compile.zig");
 pub const catalog = @import("catalog.zig");
+pub const collapse = @import("collapse.zig");
 
 pub const extension = model.extension;
 pub const version = model.version;
@@ -16,4 +17,5 @@ test {
     _ = Graph;
     _ = compile;
     _ = catalog;
+    _ = collapse;
 }
