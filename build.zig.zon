@@ -5,9 +5,14 @@
     .version = "0.1.0",
     .minimum_zig_version = "0.17.0",
     .fingerprint = 0xf6eca3e69bb49f15,
-    // The commit fluxion-script and the engine pin, so a program gets one
-    // copy of it.
+    // fluxion-json at the commit fluxion-script and the engine pin, so a
+    // program gets one copy of it.
     .dependencies = .{
+        // For what a script can call: the catalog its nodes come from.
+        .fluxion_script = .{
+            .url = "git+https://github.com/kisstp2006/fluxion-script#6c01fa3aeaccc814eb7b23222563c641c6a1eec2",
+            .hash = "fluxion_script-0.2.1-rt2DKouVFQAbWOWASDHXb1MT4hJ7jJ_5-VpYnDu7GvWB",
+        },
         .fluxion_json = .{
             .url = "git+https://github.com/kisstp2006/fluxion-json#536986073e603ed950daec1c1039b18a3d2fc997",
             .hash = "fluxion_json-0.2.3-sFlLPfelBQCe7T4IG1Vwa5dkRu-9H9UhoNdxd01SPKjQ",

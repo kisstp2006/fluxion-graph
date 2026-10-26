@@ -304,6 +304,11 @@ const Writer = struct {
             } else try w.line(n.id, "{s};", .{text});
             return w.chain(n.id, run_out);
         }
+        if (eql(kind, "member.set")) {
+            const call = n.call orelse return w.problem(n.id, "it names nothing to set", .{});
+            try w.line(n.id, "{s}{s} = {s};", .{ try w.receiver(n, call), try w.named(n.id, call.name), try w.input(n, "value") });
+            return w.chain(n.id, run_out);
+        }
         if (eql(kind, "var.set")) {
             try w.line(n.id, "self.{s} = {s};", .{ try w.named(n.id, n.member), try w.input(n, "value") });
             return w.chain(n.id, run_out);
@@ -444,6 +449,13 @@ const Writer = struct {
             return w.callText(n, call);
         }
         if (eql(kind, "var.get")) return std.fmt.allocPrint(w.arena, "self.{s}", .{try w.named(id, n.member)});
+        if (eql(kind, "member.get")) {
+            const call = n.call orelse {
+                try w.problem(id, "it names nothing to read", .{});
+                return "null";
+            };
+            return std.fmt.allocPrint(w.arena, "{s}{s}", .{ try w.receiver(n, call), try w.named(id, call.name) });
+        }
         if (eql(kind, "literal")) {
             const value = n.valueOf("value") orelse {
                 try w.problem(id, "the value is given nothing", .{});
@@ -470,18 +482,34 @@ const Writer = struct {
         return out.items;
     }
 
+    /// What a call or a member is on, with its dot: `self.entity.get(Sprite).`.
+    fn receiver(w: *Writer, n: *const Node, call: model.Call) Allocator.Error![]const u8 {
+        return switch (call.on) {
+            .none => "",
+            .self => "self.",
+            .entity => "self.entity.",
+            .component => std.fmt.allocPrint(w.arena, "self.entity.get({s}).", .{try w.named(n.id, call.of)}),
+            .global => std.fmt.allocPrint(w.arena, "{s}.", .{try w.typeName(n.id, call.of)}),
+            .target => std.fmt.allocPrint(w.arena, "{s}.", .{try w.input(n, "target")}),
+        };
+    }
+
+    /// A name with dots in it - an imported file's struct, `weather.Cloud` -
+    /// each part one Flux takes.
+    fn typeName(w: *Writer, node: u32, name: []const u8) Allocator.Error![]const u8 {
+        var parts = std.mem.splitScalar(u8, name, '.');
+        while (parts.next()) |part| if (!isName(part)) {
+            try w.problem(node, "\"{s}\" is not a name Flux takes", .{name});
+            return "_unnamed";
+        };
+        return name;
+    }
+
     fn callText(w: *Writer, n: *const Node, call: model.Call) Allocator.Error![]const u8 {
         var out: std.ArrayList(u8) = .empty;
         if (call.waits) try out.appendSlice(w.arena, "await ");
         const name = try w.named(n.id, call.name);
-        switch (call.on) {
-            .none => {},
-            .self => try out.appendSlice(w.arena, "self."),
-            .entity => try out.appendSlice(w.arena, "self.entity."),
-            .component => try out.print(w.arena, "self.entity.get({s}).", .{try w.named(n.id, call.of)}),
-            .global => try out.print(w.arena, "{s}.", .{try w.named(n.id, call.of)}),
-            .target => try out.print(w.arena, "{s}.", .{try w.input(n, "target")}),
-        }
+        try out.appendSlice(w.arena, try w.receiver(n, call));
         try out.print(w.arena, "{s}(", .{name});
         for (call.args.items, 0..) |arg, i| {
             if (i > 0) try out.appendSlice(w.arena, ", ");

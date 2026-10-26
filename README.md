@@ -54,6 +54,7 @@ The file is JSON. A node's `kind` is the name the catalog gives it (`flow.branch
 | --- | --- |
 | `model` | What a graph's file holds: `File`, `Variable`, `Signal`, `Function`, `Node`, `Link`. |
 | `Graph` | A graph read, changed and written: its file and the memory it lives in, with the edits an editor makes (imports, functions, variables, signals, nodes, links, a pin's value). |
+| `catalog` | The kinds of node there are, each with its pins and the node it makes: built from `flux.service.catalog` and the graph's own variables, signals and functions; and `check`, the links checked by their pins' types. |
 | `compile` | A graph made into Flux text, with each line kept with the node it came from (`Compiled.lineAt`), and what cannot be written said at its node (`Problem`). |
 
 ## Nodes
@@ -74,12 +75,25 @@ The other kinds:
 | `flow.for_each`, `flow.repeat`, `flow.while` | Loops: `body`, then `then`. `item` and `index` inside. |
 | `flow.wait`, `flow.print`, `flow.return` | `await wait(seconds)`, `print(value)`, `return`. |
 
+`member.get` and `member.set` read and set a field of what their `call` names, as a call is made on it.
+
 Run pins are `run` in and `then` out; a call's value is `result`.
+
+## The catalog
+
+No node of the engine's is written here. `catalog.build` reads them from `flux.service.catalog`, which is the place Flux's completions come from, so whatever the engine, the project's Flux or a plugin gives scripts is a node too:
+
+- each method of a component, on the graph's entity, and of any of the host's types, on a value a link brings;
+- each field, as a node that reads it and one that sets it;
+- each global's methods (`app.find`);
+- each hook (`update`) as an event that starts a function;
+- each built-in function, and each function of a file the graph may import, with the import added with the node.
+
+A method is an action: it runs in order. A built-in that changes nothing (`clamp`, `vec2`), and a Flux function marked `@pure`, is an expression. A Flux function's `@node("Weather", "cloud")` puts it in the chooser's group `Weather`, with the icon `cloud`.
 
 ## To come
 
-1. **The catalog.** The node kinds there are. A node for each of the engine's types, methods, signals and hooks, and for each function of the project's Flux, is not written by hand: it is read from the same place Flux's completions come from. Anything a plugin gives Flux is therefore a node too.
-2. **The editor widget** (`fluxion_graph_ui`), built on [fluxion-ui](https://github.com/kisstp2006/fluxion-ui) as [fluxion-code](https://github.com/kisstp2006/fluxion-code) is.
+1. **The editor widget** (`fluxion_graph_ui`), built on [fluxion-ui](https://github.com/kisstp2006/fluxion-ui) as [fluxion-code](https://github.com/kisstp2006/fluxion-code) is.
 
 ## Building
 
