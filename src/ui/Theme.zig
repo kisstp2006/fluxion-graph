@@ -22,6 +22,9 @@ text: Color,
 dim_text: Color,
 /// What a pin given nothing shows it holds.
 value_text: Color,
+/// What a pin held as the game ran: the box beside it, and its words.
+watched: Color = .bytes(16, 18, 20, 220),
+watched_text: Color = .bytes(255, 214, 120, 255),
 box: Color,
 box_border: Color,
 /// The run: its pins and its links.

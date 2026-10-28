@@ -78,6 +78,12 @@ pub const Options = struct {
         call: []const u8,
         /// What the watcher knows the graph by.
         file: u32 = 0,
+        /// A function the VM has, taking three ints, a pin's name and a
+        /// string, called with what each pin of a node that runs is given
+        /// and gives - its inputs before it runs, its result after - as
+        /// `str` writes it: Flux's `{saw}({file}, {function}, {node},
+        /// "{pin}", str({value}));`. None: which ran, and not with what.
+        saw: []const u8 = "",
     };
 };
 
@@ -204,6 +210,38 @@ const Writer = struct {
         try w.line(node, "{s}({d}, {d}, {d});", .{ t.call, t.file, w.at orelse 0, node });
     }
 
+    /// The trace's call for what the input pins of `n` are given, just
+    /// before it runs: each pin a link brings a value to.
+    fn sawInputs(w: *Writer, n: *const Node) Allocator.Error!void {
+        const t = w.trace orelse return;
+        if (t.saw.len == 0) return;
+        for (w.function.links.items) |l| {
+            if (l.to.node != n.id or eql(l.to.pin, run_in)) continue;
+            // A value that cannot be worked out is the node's own line's
+            // problem, said once: not watched.
+            const said = w.problems.items.len;
+            const value = try w.input(n, l.to.pin);
+            if (w.problems.items.len > said) {
+                w.problems.shrinkRetainingCapacity(said);
+                continue;
+            }
+            try w.saw(n.id, l.to.pin, value);
+        }
+    }
+
+    /// The trace's call for what the output `pin` of node `node` holds in
+    /// `value` - a name the node's line made - where something reads it.
+    fn sawOutput(w: *Writer, node: u32, pin: []const u8, value: []const u8) Allocator.Error!void {
+        const t = w.trace orelse return;
+        if (t.saw.len == 0 or !w.isLinkedFrom(node, pin)) return;
+        try w.saw(node, pin, value);
+    }
+
+    fn saw(w: *Writer, node: u32, pin: []const u8, value: []const u8) Allocator.Error!void {
+        const t = w.trace.?;
+        try w.line(node, "{s}({d}, {d}, {d}, {s}, str({s}));", .{ t.saw, t.file, w.at orelse 0, node, try quote(w.arena, pin), value });
+    }
+
     fn problem(w: *Writer, node: u32, comptime fmt: []const u8, args: anytype) Allocator.Error!void {
         try w.problems.append(w.arena, .{ .function = w.at, .node = node, .message = try std.fmt.allocPrint(w.arena, fmt, args) });
     }
@@ -299,6 +337,7 @@ const Writer = struct {
         } else null;
         if (entry) |n| {
             try w.ran(n.id);
+            for (f.params.items) |p| try w.sawOutput(n.id, p.name, try w.named(n.id, p.name));
             try w.chain(n.id, run_out);
         } else try w.problem(0, "{s} has no entry", .{f.name});
         w.depth -= 1;
@@ -364,6 +403,7 @@ const Writer = struct {
         const kind = n.kind;
         // A point a run is led through, to lay its link out.
         if (eql(kind, reroute_run)) return w.chain(n.id, run_out);
+        try w.sawInputs(n);
         if (eql(kind, "call")) {
             const call = n.call orelse return w.problem(n.id, "a call that names nothing to call", .{});
             if (!call.action) return w.problem(n.id, "{s} changes nothing, so it is not run: use its value", .{call.name});
@@ -371,6 +411,7 @@ const Writer = struct {
             if (call.gives and w.isLinkedFrom(n.id, result_pin)) {
                 try w.line(n.id, "const n{d} = {s};", .{ n.id, text });
                 try w.made.put(w.arena, n.id, {});
+                try w.sawOutput(n.id, result_pin, try std.fmt.allocPrint(w.arena, "n{d}", .{n.id}));
             } else if (call.gives) {
                 try w.line(n.id, "_ = {s};", .{text});
             } else try w.line(n.id, "{s};", .{text});
@@ -390,6 +431,7 @@ const Writer = struct {
             if (w.isLinkedFrom(n.id, result_pin)) {
                 try w.line(n.id, "const n{d} = await {s};", .{ n.id, value });
                 try w.made.put(w.arena, n.id, {});
+                try w.sawOutput(n.id, result_pin, try std.fmt.allocPrint(w.arena, "n{d}", .{n.id}));
             } else try w.line(n.id, "await {s};", .{value});
             return w.chain(n.id, run_out);
         }
@@ -491,6 +533,11 @@ const Writer = struct {
     fn loopBody(w: *Writer, n: *const Node) Allocator.Error!void {
         try w.looping.put(w.arena, n.id, {});
         defer _ = w.looping.remove(n.id);
+        // What each round is given, as it starts.
+        w.depth += 1;
+        if (eql(n.kind, "flow.for_each")) try w.sawOutput(n.id, "item", try std.fmt.allocPrint(w.arena, "item{d}", .{n.id}));
+        try w.sawOutput(n.id, "index", try std.fmt.allocPrint(w.arena, "index{d}", .{n.id}));
+        w.depth -= 1;
         try w.block(n.id, "body");
     }
 
@@ -1072,4 +1119,31 @@ test "what Flux writes, a graph writes too: locals, awaits, switches, words with
         \\}
         \\
     , made.text);
+}
+
+test "watched, a node that runs says what its pins are given before it runs, and its result after, each line its node's" {
+    var graph = try door(testing.allocator);
+    defer graph.deinit();
+    var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer arena.deinit();
+    const made = try compile(arena.allocator(), &graph.file, .{ .path = "res://door.fxgraph", .trace = .{ .call = "ran", .file = 2, .saw = "saw" } });
+    try testing.expectEqual(@as(usize, 0), made.problems.len);
+    // The entry's parameter, the set's value, and the branch's condition -
+    // linked; the emit's and the call's values written on them are not.
+    for ([_][]const u8{
+        "saw(2, 0, 1, \"dt\", str(dt));",
+        "saw(2, 0, 2, \"value\", str((self.turned + (dt * self.speed))));",
+        "saw(2, 0, 7, \"condition\", str((self.turned > 90.0)));",
+    }) |wanted| try testing.expect(std.mem.indexOf(u8, made.text, wanted) != null);
+    try testing.expectEqual(@as(usize, 3), std.mem.count(u8, made.text, "saw("));
+    // Each before its node's own line, and kept with it.
+    const value_at = std.mem.indexOf(u8, made.text, "saw(2, 0, 2,").?;
+    try testing.expect(value_at < std.mem.indexOf(u8, made.text, "self.turned = ").?);
+    var line: u32 = 1;
+    for (made.text[0..value_at]) |c| line += @intFromBool(c == '\n');
+    try testing.expectEqual(@as(u32, 2), made.lineAt(line).node);
+
+    // Without `saw`, only which ran.
+    const ran_only = try compile(arena.allocator(), &graph.file, .{ .path = "res://door.fxgraph", .trace = .{ .call = "ran", .file = 2 } });
+    try testing.expectEqual(@as(usize, 0), std.mem.count(u8, ran_only.text, "str("));
 }

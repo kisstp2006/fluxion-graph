@@ -28,6 +28,10 @@ carried: std.ArrayList(u32) = .empty,
 /// How bright each node's edge is, nought to one: the program's to say -
 /// the nodes a game ran just now.
 glow: std.AutoHashMapUnmanaged(u32, f32) = .empty,
+/// What a game's pins held as it ran, written as its language writes them:
+/// the program's to say, and its words the program's to keep while they
+/// are here.
+watched: std.ArrayList(Watched) = .empty,
 drag: Drag = .none,
 /// The view's box on the surface last frame: x, y, width, height.
 view: [4]f32 = .{ 0, 0, 0, 0 },
@@ -37,6 +41,13 @@ pointer: Point = .{ 0, 0 },
 /// chooser.
 last_press: f64 = -10,
 last_press_at: Point = .{ 0, 0 },
+
+/// A pin's value, shown beside it.
+pub const Watched = struct {
+    node: u32,
+    pin: []const u8,
+    text: []const u8,
+};
 
 pub const min_zoom = 0.2;
 pub const max_zoom = 2.5;
@@ -65,6 +76,7 @@ pub fn deinit(self: *Canvas) void {
     self.selected.deinit(self.gpa);
     self.carried.deinit(self.gpa);
     self.glow.deinit(self.gpa);
+    self.watched.deinit(self.gpa);
 }
 
 /// A point of the view as a point of the canvas.
@@ -102,6 +114,13 @@ pub fn clear(self: *Canvas) void {
 /// How bright the edge of node `id` is.
 pub fn glowOf(self: *const Canvas, id: u32) f32 {
     return self.glow.get(id) orelse 0;
+}
+
+/// What the pin `pin` of node `id` held as the game ran; none where it was
+/// not watched.
+pub fn watchedOf(self: *const Canvas, id: u32, pin: []const u8) ?[]const u8 {
+    for (self.watched.items) |w| if (w.node == id and std.mem.eql(u8, w.pin, pin)) return w.text;
+    return null;
 }
 
 /// Every node shown, as near as fits up to a zoom of one, in the middle of

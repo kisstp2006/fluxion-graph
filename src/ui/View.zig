@@ -32,7 +32,8 @@
 //! - What is picked is copied as text for a clipboard (`copy`) and put back
 //!   by `paste`, new nodes each time; D does both at once.
 //! - The program may light nodes' edges - the ones a game ran just now - by
-//!   `Canvas.glow`.
+//!   `Canvas.glow`, and show beside a pin what it held as the game ran, by
+//!   `Canvas.watched`.
 //!
 //! What a node is given on a pin, and which node to make, are the program's
 //! to ask: the view says when (`Outcome`), and the graph is changed only by
@@ -349,8 +350,74 @@ fn node(v: View, canvas: *const Canvas, ui: *Ui, arena: Allocator, f: *const mod
                 .corner_radius = if (pin.run) .all(1) else .all(dot / 2),
                 .rotate_shape = if (pin.run) .{ .radians = std.math.pi / 4.0 } else null,
             });
+            // What it held as the game ran: an input's left of the node, an
+            // output's right, as long as its words are.
+            if (!words or pin.run) continue;
+            const held = try shortNumbers(arena, canvas.watchedOf(one.node.id, pin.name) orelse continue);
+            const shown = if (held.len > 24) try std.fmt.allocPrint(arena, "{s}...", .{held[0..21]}) else held;
+            const wide = (@as(f32, @floatFromInt(shown.len)) * 0.6 * @as(f32, @floatFromInt(small))) + 8 * z;
+            const tall = @as(f32, @floatFromInt(small)) + 4 * z;
+            const x = if (side == .input) p[0] - dot - wide else p[0] + dot;
+            ui.open(.{
+                .floating = .{ .offset = .{ .x = x, .y = p[1] - tall / 2 }, .z_index = 4, .clip = .target },
+                .width = .fixed(wide),
+                .height = .fixed(tall),
+                .padding = .xy(@intFromFloat(4 * z), 0),
+                .align_y = .center,
+                .align_x = if (side == .input) .right else .left,
+                .background_color = theme.watched,
+                .corner_radius = .all(3 * z),
+            });
+            ui.text(shown, .{ .font_size = small, .color = theme.watched_text, .wrap = .none, .font = v.font });
+            ui.close();
         }
     }
+}
+
+/// `text` with each number in it written with three places after the point
+/// at most: `0.04999999999999999` as `0.05`, `(0.0, 1.65, 0.0)` as it is.
+fn shortNumbers(arena: Allocator, text: []const u8) Allocator.Error![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    var at: usize = 0;
+    while (at < text.len) {
+        const c = text[at];
+        const starts = std.ascii.isDigit(c) or (c == '-' and at + 1 < text.len and std.ascii.isDigit(text[at + 1]));
+        // Not a number's middle: a name's digits stay.
+        if (!starts or (at > 0 and (std.ascii.isAlphanumeric(text[at - 1]) or text[at - 1] == '_' or text[at - 1] == '.'))) {
+            try out.append(arena, c);
+            at += 1;
+            continue;
+        }
+        var end = at + 1;
+        while (end < text.len and (std.ascii.isDigit(text[end]) or text[end] == '.' or text[end] == 'e' or text[end] == 'E' or ((text[end] == '-' or text[end] == '+') and (text[end - 1] == 'e' or text[end - 1] == 'E')))) end += 1;
+        const number = text[at..end];
+        const dot_at = std.mem.indexOfScalar(u8, number, '.');
+        if (dot_at != null and number.len - dot_at.? > 4) {
+            if (std.fmt.parseFloat(f64, number)) |value| {
+                var buffer: [64]u8 = undefined;
+                var written = std.fmt.bufPrint(&buffer, "{d:.3}", .{value}) catch number;
+                // Its zeros at the end let go of, keeping one after the point.
+                while (written.len > 2 and written[written.len - 1] == '0' and written[written.len - 2] != '.') written = written[0 .. written.len - 1];
+                try out.appendSlice(arena, written);
+                at = end;
+                continue;
+            } else |_| {}
+        }
+        try out.appendSlice(arena, number);
+        at = end;
+    }
+    return out.items;
+}
+
+test "numbers in a watched value are written short; names and short ones are left as they are" {
+    var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try testing.expectEqualStrings("0.05", try shortNumbers(a, "0.04999999999999999"));
+    try testing.expectEqualStrings("(0.0, 1.65, -0.421)", try shortNumbers(a, "(0.0, 1.65, -0.4213894)"));
+    try testing.expectEqualStrings("Cursor.locked", try shortNumbers(a, "Cursor.locked"));
+    try testing.expectEqualStrings("item2 7 true", try shortNumbers(a, "item2 7 true"));
+    try testing.expectEqualStrings("0.14", try shortNumbers(a, "0.1396024525165558"));
 }
 
 fn linkedInto(f: *const model.Function, id: u32, pin: []const u8) bool {
@@ -806,6 +873,47 @@ test "a frame of the view draws the nodes with their words and dots, and the lin
     try testing.expect(saw_title and saw_value);
     // The link's pieces, the nodes, their dots and the grid.
     try testing.expect(turned > 30);
+}
+
+test "what a pin held as the game ran is shown beside it, an input's left of its node; a pin not watched shows none" {
+    var fx: Fixture = undefined;
+    try fx.init();
+    defer fx.deinit();
+    const v: View = .{};
+    const f = try fx.graph.addFunction("update", .event);
+    try f.params.append(fx.arena.allocator(), .{ .name = "dt", .type = "float" });
+    const say = try fx.graph.addNode(f, "flow.print", .{ 300, 100 });
+    try fx.graph.connect(f, .{ .node = 1, .pin = "then" }, .{ .node = say, .pin = "run" });
+    try fx.graph.connect(f, .{ .node = 1, .pin = "dt" }, .{ .node = say, .pin = "value" });
+    try fx.canvas.watched.append(testing.allocator, .{ .node = say, .pin = "value", .text = "0.016" });
+    try fx.canvas.watched.append(testing.allocator, .{ .node = 1, .pin = "dt", .text = "0.25" });
+
+    var ui: Ui = .init(testing.allocator);
+    defer ui.deinit();
+    ui.setMeasurer(.monospace(0.5, 1.0));
+    ui.begin(.init(800, 600));
+    try v.draw(&fx.canvas, &ui, fx.arena.allocator(), f, &fx.nodes);
+    const drawn = try ui.end();
+    var input_x: ?f32 = null;
+    var output_seen = false;
+    for (drawn) |c| switch (c.config) {
+        .text => |t| {
+            if (std.mem.eql(u8, t.text, "0.016")) input_x = c.bounding_box.x;
+            if (std.mem.eql(u8, t.text, "0.25")) output_seen = true;
+        },
+        else => {},
+    };
+    try testing.expect(output_seen);
+    // Left of the print node's own left edge.
+    try testing.expect(input_x.? < fx.canvas.toView(.{ 300, 100 })[0]);
+
+    fx.canvas.watched.clearRetainingCapacity();
+    ui.begin(.init(800, 600));
+    try v.draw(&fx.canvas, &ui, fx.arena.allocator(), f, &fx.nodes);
+    for (try ui.end()) |c| switch (c.config) {
+        .text => |t| try testing.expect(!std.mem.eql(u8, t.text, "0.016")),
+        else => {},
+    };
 }
 
 test "a comment's header moves it and what is in it, its corner sizes it, and Delete takes it out alone" {
