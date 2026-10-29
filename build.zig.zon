@@ -15,8 +15,8 @@
         },
         // The editor's widget draws with it: the commit the engine pins.
         .fluxion_ui = .{
-            .url = "git+https://github.com/kisstp2006/fluxion-ui#bb2addb94dd0592377660599483b692add1fa93c",
-            .hash = "fluxion_ui-0.2.3-lw4Ws0eSEACqOZFnlZNN8g-ErWrZYjErWnleaZsS6sBo",
+            .url = "git+https://github.com/kisstp2006/fluxion-ui#f6bdfefd2c8cc1603cea6da2c675e8b78d0f34a6",
+            .hash = "fluxion_ui-0.2.3-lw4Ws8KpEADiiqCshBHOIa9Mqozq-rTqevVS1tlhuyAD",
         },
         .fluxion_json = .{
             .url = "git+https://github.com/kisstp2006/fluxion-json#536986073e603ed950daec1c1039b18a3d2fc997",
